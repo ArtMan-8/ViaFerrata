@@ -1,12 +1,8 @@
 ---
 status: accepted
 date: "{YYYY-MM-DD}"
-decision-makers: ["{имя}"]
-consulted: []
-informed: []
-origin: "{откуда решение}"
+origin: "{R-NNNN или откуда решение}"
 applies_to: ["{глоб}"]
-core: false
 ---
 
 # ADR-NNNN: {короткий заголовок — само решение}
