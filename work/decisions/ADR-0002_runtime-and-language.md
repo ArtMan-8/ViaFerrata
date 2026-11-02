@@ -2,7 +2,13 @@
 status: accepted
 date: 2026-11-01
 origin: "R-0001"
-applies_to: ["src/**", "bin/**", "test/**", "package.json", "tsconfig.json", ".node-version"]
+applies_to:
+  - "src/**"
+  - "bin/**"
+  - "test/**"
+  - "package.json"
+  - "tsconfig.json"
+  - ".node-version"
 core: true
 ---
 

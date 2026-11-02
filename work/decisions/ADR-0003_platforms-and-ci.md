@@ -2,7 +2,14 @@
 status: accepted
 date: 2026-11-01
 origin: "R-0001"
-applies_to: ["src/**", "bin/**", "test/**", ".github/**", "package.json", ".gitattributes", "README.md"]
+applies_to:
+  - "src/**"
+  - "bin/**"
+  - "test/**"
+  - ".github/**"
+  - "package.json"
+  - ".gitattributes"
+  - "README.md"
 ---
 
 # ADR-0003: Поддержка Linux, macOS и Windows с CI-матрицей
