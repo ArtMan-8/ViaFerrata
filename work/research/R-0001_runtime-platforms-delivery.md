@@ -1,7 +1,10 @@
 ---
 status: completed
 date: 2026-11-01
-feeds_into: ["ADR-0002", "ADR-0003", "ADR-0004"]
+feeds_into:
+  - "ADR-0002"
+  - "ADR-0003"
+  - "ADR-0004"
 ---
 
 # R-0001: Рантайм, платформы и доставка — сравнение Node.js, Bun и Deno

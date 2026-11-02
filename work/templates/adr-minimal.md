@@ -1,7 +1,8 @@
 ---
 status: accepted
 date: "{YYYY-MM-DD}"
-applies_to: ["{глоб}"]
+applies_to:
+  - "{glob}"
 ---
 
 # ADR-NNNN: {короткий заголовок — само решение}

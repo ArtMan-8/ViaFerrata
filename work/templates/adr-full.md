@@ -1,8 +1,8 @@
 ---
 status: accepted
 date: "{YYYY-MM-DD}"
-origin: "{R-NNNN или откуда решение}"
-applies_to: ["{глоб}"]
+applies_to:
+  - "{glob}"
 ---
 
 # ADR-NNNN: {короткий заголовок — само решение}

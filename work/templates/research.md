@@ -1,6 +1,6 @@
 ---
 status: completed
-date: YYYY-MM-DD
+date: "{YYYY-MM-DD}"
 ---
 
 # R-NNNN: {короткий заголовок — тема исследования}
@@ -31,9 +31,9 @@ date: YYYY-MM-DD
 
 ## Outcomes and traceability
 
-- ADR: созданные/обновлённые ADR и их роль; список ID совпадает с `feeds_into`.
-- Task/spec: задачи или изменения требований, если есть.
-- No further action: явно указать, если вывод не требует ADR или задачи.
+* ADR: созданные/обновлённые ADR и их роль; список ID совпадает с `feeds_into`.
+* Task/spec: задачи или изменения требований, если есть.
+* No further action: явно указать, если вывод не требует ADR или задачи.
 
 ## Limitations and open questions
 
