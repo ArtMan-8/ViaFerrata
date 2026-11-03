@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - trunk
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Node.js ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-26
+          - windows-2025
+        node:
+          - 24.22.2
+          - 26.13.0
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Run typecheck
+        run: npm run typecheck
+
+  old-node:
+    name: old-node / Node.js 22.12.0
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.12.0
+      - name: Run old-node test
+        run: node --test test/old-node.test.mjs
+
+  clean-machine:
+    name: clean-machine / node:24.22.2-bookworm
+    runs-on: ubuntu-24.04
+    container:
+      image: node:24.22.2-bookworm
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Run tests without dev dependencies
+        run: node --test
+      - name: Run CLI
+        run: node bin/vf.mjs --version
