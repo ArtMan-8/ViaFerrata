@@ -1,0 +1,23 @@
+{
+  "name": "viaferrata",
+  "version": "0.0.0",
+  "description": "Spec-driven development toolkit for AI-assisted projects",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "vf": "./bin/vf.mjs"
+  },
+  "engines": {
+    "node": ">=24.22.2"
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "start": "node bin/vf.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}
