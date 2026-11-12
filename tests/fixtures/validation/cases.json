@@ -1,0 +1,298 @@
+[
+  {
+    "name": "minimal-without-optional-sections",
+    "exitCode": 0,
+    "errors": [],
+    "warnings": []
+  },
+  {
+    "name": "code-examples",
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [],
+    "overlay": "overlays/code-examples"
+  },
+  {
+    "name": "approved-without-approval",
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [],
+    "overlay": "overlays/approved-without-approval"
+  },
+  {
+    "name": "unknown-document-field",
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
+      {
+        "code": "W_UNKNOWN_FIELD",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "overlay": "overlays/unknown-document-field"
+  },
+  {
+    "name": "broken-yaml",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_YAML",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/broken-yaml"
+  },
+  {
+    "name": "missing-id",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_ID",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/missing-id"
+  },
+  {
+    "name": "unknown-id",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_ID",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/unknown-id"
+  },
+  {
+    "name": "wrong-field",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_FIELD",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/wrong-field"
+  },
+  {
+    "name": "bad-state",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_ENUM",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/bad-state"
+  },
+  {
+    "name": "bad-date",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_DATE",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/bad-date"
+  },
+  {
+    "name": "backwards-date",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_DATE",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/backwards-date"
+  },
+  {
+    "name": "unquoted-date",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_DATE",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/unquoted-date"
+  },
+  {
+    "name": "duplicate-local-id",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_DUPLICATE_LOCAL_ID",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/duplicate-local-id"
+  },
+  {
+    "name": "missing-local-target",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_REFERENCE_TARGET",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/missing-local-target"
+  },
+  {
+    "name": "bad-reference-syntax",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_REFERENCE_SYNTAX",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/bad-reference-syntax"
+  },
+  {
+    "name": "wrong-local-type",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_REFERENCE_SYNTAX",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/wrong-local-type"
+  },
+  {
+    "name": "missing-section",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_STRUCTURE",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/missing-section"
+  },
+  {
+    "name": "unfinished-draft",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_DRAFT_PLACEHOLDER",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/unfinished-draft"
+  },
+  {
+    "name": "nested-yaml-reference",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_FIELD",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/nested-yaml-reference"
+  },
+  {
+    "name": "removed-target",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_REFERENCE_TARGET",
+        "path": "viaferrata/changes/change-000042/intent.md"
+      },
+      {
+        "code": "E_REFERENCE_TARGET",
+        "path": "viaferrata/changes/change-000042/spec.md"
+      }
+    ],
+    "warnings": [],
+    "remove": [
+      "viaferrata/specs/export.md"
+    ]
+  },
+  {
+    "name": "duplicate-document-id",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_DUPLICATE_ID",
+        "path": "viaferrata/specs/export.md"
+      },
+      {
+        "code": "E_DUPLICATE_ID",
+        "path": "viaferrata/specs/duplicate.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/duplicate-document-id"
+  },
+  {
+    "name": "status-in-journal",
+    "exitCode": 1,
+    "errors": [
+      {
+        "code": "E_FIELD",
+        "path": "viaferrata/changes/change-000042/journal.md"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/status-in-journal"
+  },
+  {
+    "name": "unknown-config-key",
+    "exitCode": 2,
+    "errors": [
+      {
+        "code": "E_CONFIG",
+        "path": "viaferrata.toml"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/unknown-config-key"
+  },
+  {
+    "name": "unsupported-required-check",
+    "exitCode": 2,
+    "errors": [
+      {
+        "code": "E_UNSUPPORTED",
+        "path": "viaferrata.toml"
+      }
+    ],
+    "warnings": [],
+    "overlay": "overlays/unsupported-required-check"
+  },
+  {
+    "name": "strict-structural-only",
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [],
+    "overlay": "overlays/strict-structural-only"
+  },
+  {
+    "name": "custom-documents-root",
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [],
+    "overlay": "overlays/custom-documents-root"
+  }
+]
