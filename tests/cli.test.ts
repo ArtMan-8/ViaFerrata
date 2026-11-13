@@ -1,3 +1,5 @@
+import type { ChangeIO } from "../src/commands/new.ts";
+import { CommandError } from "../src/diagnostics.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
@@ -10,9 +12,9 @@ import {
   edit,
   snapshot,
   repo,
-} from "./helpers.js";
-import { loadConfig } from "../src/config.js";
-import { createChange } from "../src/new.js";
+} from "./helpers.ts";
+import { loadConfig } from "../src/config.ts";
+import { createChange } from "../src/commands/new.ts";
 
 test("help/version and usage work without a project", async (t) => {
   const root = await temporary(t);
@@ -23,7 +25,7 @@ test("help/version and usage work without a project", async (t) => {
   );
   assert.equal(run(["--version"], root).stdout.trim(), pkg.version);
   for (const args of [
-    ["init"],
+    ["unknown"],
     ["validate", "extra"],
     ["--root"],
     ["--unknown"],
@@ -135,7 +137,7 @@ test("exclusive-create conflict never overwrites another owner", async (t) => {
   const root = await project(t, false);
   const config = await loadConfig(root);
   const target = path.join(root, "viaferrata/changes/change-000001");
-  const io = {
+  const io: ChangeIO = {
     ...fs,
     mkdir: async (p) => {
       if (p === target) {
@@ -147,7 +149,7 @@ test("exclusive-create conflict never overwrites another owner", async (t) => {
   };
   await assert.rejects(
     createChange(config, "Conflict", { io }),
-    (e) => e.code === "E_EXISTS",
+    (e) => e instanceof CommandError && e.code === "E_EXISTS",
   );
   assert.equal(
     await fs.readFile(path.join(target, "intent.md"), "utf8"),
@@ -158,12 +160,13 @@ test("exclusive-create conflict never overwrites another owner", async (t) => {
 test("write failure reports and preserves exact partial result; next attempt skips ID", async (t) => {
   const root = await project(t, false);
   const config = await loadConfig(root);
-  const io = {
+  const io: ChangeIO = {
     ...fs,
     open: async (file, flags) => {
       if (file.endsWith("/spec.md")) {
-        const error = new Error("simulated ENOSPC");
-        error.code = "ENOSPC";
+        const error = Object.assign(new Error("simulated ENOSPC"), {
+          code: "ENOSPC",
+        });
         throw error;
       }
       return fs.open(file, flags);
@@ -172,6 +175,7 @@ test("write failure reports and preserves exact partial result; next attempt ski
   await assert.rejects(
     createChange(config, "Partial", { io }),
     (e) =>
+      e instanceof CommandError &&
       e.code === "E_IO" &&
       /intent.md/.test(e.message) &&
       !/создано:.*spec.md/.test(e.message),
@@ -189,7 +193,7 @@ test("template failure causes no project writes; updated templates do not regene
   const before = await snapshot(root);
   await assert.rejects(
     createChange(config, "Missing", { templates: path.join(root, "missing") }),
-    (e) => e.code === "E_IO",
+    (e) => e instanceof CommandError && e.code === "E_IO",
   );
   assert.deepEqual(await snapshot(root), before);
   const templates = path.join(root, "library");

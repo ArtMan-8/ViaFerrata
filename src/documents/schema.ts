@@ -1,16 +1,22 @@
+import type {
+  DocumentType,
+  DocumentIdentity,
+  AddressIdentity,
+} from "./types.ts";
+
 export const documentPattern =
   /^(?:change-(\d{6})\/(intent|spec|plan|journal)|(srs|research|adr)-(\d{6}))$/;
-export function identity(id) {
+export function identity(id: unknown): DocumentIdentity | null {
   if (typeof id !== "string") return null;
   const match = documentPattern.exec(id);
   if (!match || Number(match[1] ?? match[4]) === 0) return null;
   return {
     id,
-    type: match[2] ?? match[3],
+    type: (match[2] ?? match[3]) as DocumentType,
     change: match[1] ? `change-${match[1]}` : null,
   };
 }
-export const localTypes = {
+export const localTypes: Record<DocumentType, readonly string[]> = {
   intent: ["AC"],
   spec: ["R", "S", "DOD"],
   plan: ["W", "P"],
@@ -19,7 +25,7 @@ export const localTypes = {
   research: [],
   adr: [],
 };
-export function addressIdentity(value) {
+export function addressIdentity(value: unknown): AddressIdentity | null {
   if (typeof value !== "string") return null;
   if (/^change-\d{6}$/.test(value) && Number(value.slice(7)) > 0)
     return { bundle: value };
@@ -40,7 +46,7 @@ export const executions = [
   "completed",
   "cancelled",
 ];
-export const requiredHeadings = {
+export const requiredHeadings: Record<DocumentType, readonly string[]> = {
   intent: ["Goal", "Constraints", "Context", "Acceptance Criteria"],
   spec: ["Change Boundaries", "Requirements", "Definition of Done"],
   plan: ["Steps"],

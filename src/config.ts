@@ -1,36 +1,21 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { checkPath } from "./filesystem.ts";
 import { parse } from "smol-toml";
-import { CommandError } from "./diagnostics.js";
+import { CommandError, errorCode, errorMessage } from "./diagnostics.ts";
 
-export const categories = ["changes", "specs", "research", "adr"];
-
-// Check each existing component before reading/writing; no symlink traversal.
-export async function checkPath(target, missingAllowed = true) {
-  const absolute = path.resolve(target);
-  const { root } = path.parse(absolute);
-  let cursor = root;
-  for (const component of absolute
-    .slice(root.length)
-    .split(path.sep)
-    .filter(Boolean)) {
-    cursor = path.join(cursor, component);
-    try {
-      const st = await fs.lstat(cursor);
-      if (st.isSymbolicLink())
-        throw new CommandError(
-          "E_UNSUPPORTED",
-          "Симлинки не поддерживаются; используйте обычный путь.",
-          cursor,
-        );
-    } catch (error) {
-      if (error.code === "ENOENT" && missingAllowed) return;
-      throw error;
-    }
-  }
+export const categories = ["changes", "specs", "research", "adr"] as const;
+export type Category = (typeof categories)[number];
+export interface Config {
+  root: string;
+  documentsRoot: string;
+  directories: Record<Category, string>;
+  profile: "lite" | "strict";
 }
 
-export async function loadConfig(rootArgument = process.cwd()) {
+export async function loadConfig(
+  rootArgument = process.cwd(),
+): Promise<Config> {
   const root = path.resolve(rootArgument);
   const file = path.join(root, "viaferrata.toml");
   try {
@@ -45,28 +30,45 @@ export async function loadConfig(rootArgument = process.cwd()) {
   } catch (error) {
     if (error instanceof CommandError) throw error;
     throw new CommandError(
-      error.code === "ENOENT" ? "E_CONFIG" : "E_IO",
-      `Не удалось открыть проект: ${error.message}; проверьте --root и viaferrata.toml.`,
+      errorCode(error) === "ENOENT" ? "E_CONFIG" : "E_IO",
+      `Не удалось открыть проект: ${errorMessage(error)}; проверьте --root и viaferrata.toml.`,
       file,
     );
   }
-  let config;
   let raw;
   try {
     raw = await fs.readFile(file, "utf8");
   } catch (error) {
     throw new CommandError(
       "E_IO",
-      `Не удалось прочитать конфигурацию: ${error.message}; проверьте доступ.`,
+      `Не удалось прочитать конфигурацию: ${errorMessage(error)}; проверьте доступ.`,
       file,
     );
   }
+  const config = parseConfig(root, raw);
+  try {
+    for (const directory of Object.values(config.directories))
+      await checkPath(directory);
+  } catch (error) {
+    if (error instanceof CommandError) throw error;
+    throw new CommandError(
+      "E_IO",
+      `${errorMessage(error)}; проверьте каталоги документов.`,
+      file,
+    );
+  }
+  return config;
+}
+
+export function parseConfig(root: string, raw: string): Config {
+  const file = path.join(root, "viaferrata.toml");
+  let config: Record<string, unknown>;
   try {
     config = parse(raw);
   } catch (error) {
     throw new CommandError(
       "E_CONFIG",
-      `Некорректный TOML: ${error.message}; исправьте конфигурацию.`,
+      `Некорректный TOML: ${errorMessage(error)}; исправьте конфигурацию.`,
       file,
     );
   }
@@ -83,7 +85,7 @@ export async function loadConfig(rootArgument = process.cwd()) {
         `Неизвестный ключ ${key}; удалите или исправьте его.`,
         file,
       );
-  if (!["lite", "strict"].includes(config.profile))
+  if (config.profile !== "lite" && config.profile !== "strict")
     throw new CommandError(
       "E_CONFIG",
       "profile должен быть lite или strict.",
@@ -128,17 +130,6 @@ export async function loadConfig(rootArgument = process.cwd()) {
   const documentsRoot = path.join(root, relative);
   const directories = Object.fromEntries(
     categories.map((c) => [c, path.join(documentsRoot, c)]),
-  );
-  try {
-    for (const directory of Object.values(directories))
-      await checkPath(directory);
-  } catch (error) {
-    if (error instanceof CommandError) throw error;
-    throw new CommandError(
-      "E_IO",
-      `${error.message}; проверьте каталоги документов.`,
-      file,
-    );
-  }
+  ) as Record<Category, string>;
   return { root, documentsRoot, directories, profile: config.profile };
 }

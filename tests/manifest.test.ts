@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { temporary, write } from "./helpers.js";
-import { inputManifest } from "../scripts/input-manifest.js";
+import { temporary, write } from "./helpers.ts";
+import { inputManifest } from "../scripts/input-manifest.ts";
 
 test("manifest records exact bytes, new files and deterministic path order", async (t) => {
   const root = await temporary(t);
@@ -23,10 +23,12 @@ test("manifest records exact bytes, new files and deterministic path order", asy
     "viaferrata.toml",
     "README.md",
     "LICENSE",
+    "tsconfig.json",
+    "tsconfig.build.json",
   ])
     await write(root, file, "");
-  await write(root, "src/Z.js", "a\n");
-  await write(root, "src/a.js", "b\n");
+  await write(root, "src/Z.ts", "a\n");
+  await write(root, "src/a.ts", "b\n");
   const first = await inputManifest(root);
   assert.deepEqual(
     first.files.map((file) => file.path),
@@ -35,8 +37,10 @@ test("manifest records exact bytes, new files and deterministic path order", asy
       "README.md",
       "package-lock.json",
       "package.json",
-      "src/Z.js",
-      "src/a.js",
+      "src/Z.ts",
+      "src/a.ts",
+      "tsconfig.build.json",
+      "tsconfig.json",
       "viaferrata.toml",
     ],
   );
@@ -53,24 +57,31 @@ test("manifest records exact bytes, new files and deterministic path order", asy
     hash.update("\n");
   }
   assert.equal(first.aggregate, hash.digest("hex"));
-  await write(root, "src/a.js", "  b\r\n");
+  await write(root, "src/a.ts", "  b\r\n");
   const formatted = await inputManifest(root);
   assert.notEqual(formatted.aggregate, first.aggregate);
   assert.deepEqual(
     formatted.files
       .filter((file, i) => file.sha256 !== first.files[i].sha256)
       .map((file) => file.path),
-    ["src/a.js"],
+    ["src/a.ts"],
   );
-  await write(root, "src/new.js", "");
+  await write(root, "src/new.ts", "");
   const added = await inputManifest(root);
   assert.equal(added.files.length, first.files.length + 1);
   assert.notEqual(added.aggregate, formatted.aggregate);
+  for (const name of ["tsconfig.json", "tsconfig.build.json"]) {
+    const before = await inputManifest(root);
+    await write(root, name, '{"compilerOptions": {"strict": true}}');
+    assert.notEqual((await inputManifest(root)).aggregate, before.aggregate);
+  }
+  const configured = await inputManifest(root);
+  await write(root, "dist/src/cli.js", "generated output");
   await write(root, "evidence/result.json", "historical result");
   await write(
     root,
     "viaferrata/changes/change-000001/journal.md",
     "updated result",
   );
-  assert.deepEqual(await inputManifest(root), added);
+  assert.deepEqual(await inputManifest(root), configured);
 });

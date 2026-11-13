@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fixtureRoot, project, run, write, edit, snapshot } from "./helpers.js";
-import { loadConfig } from "../src/config.js";
-import { inspectDocuments } from "../src/documents.js";
+import { fixtureRoot, project, run, write, edit, snapshot } from "./helpers.ts";
+import { loadConfig } from "../src/config.ts";
+import { validateProject } from "../src/commands/validate.ts";
 
 const intentPath = "viaferrata/changes/change-000042/intent.md";
 const planPath = "viaferrata/changes/change-000042/plan.md";
@@ -109,7 +109,9 @@ test("nonempty documents_root retains leading, internal and trailing spaces", as
   assert.equal(result.status, 0, result.text);
   assert(
     (
-      await fs.stat(path.join(root, " my docs /changes/change-000001/intent.md"))
+      await fs.stat(
+        path.join(root, " my docs /changes/change-000001/intent.md"),
+      )
     ).isFile(),
   );
   const checked = run(["validate"], root);
@@ -118,9 +120,19 @@ test("nonempty documents_root retains leading, internal and trailing spaces", as
   assert(!checked.text.includes("E_CONFIG"));
 });
 
-for (const fixture of JSON.parse(
+interface ValidationCase {
+  name: string;
+  overlay?: string;
+  remove?: string[];
+  exitCode: number;
+  errors: { path: string; code: string }[];
+  warnings: { path: string; code: string }[];
+}
+// Independently authored test data, kept separate from the runtime parser.
+const cases: ValidationCase[] = JSON.parse(
   await fs.readFile(path.join(fixtureRoot, "cases.json"), "utf8"),
-)) {
+);
+for (const fixture of cases) {
   test(`independent fixture: ${fixture.name}`, async (t) => {
     const root = await project(t);
     if (fixture.overlay)
@@ -223,7 +235,13 @@ test("unreadable UTF-8 is an incomplete scan, never structural success", async (
   assert(!result.text.includes("Базовая структура проверена."));
 });
 
-const mutations = [
+const mutations: [
+  string,
+  string,
+  (source: string) => string,
+  string,
+  number,
+][] = [
   [
     "duplicate YAML key",
     intentPath,
@@ -393,13 +411,14 @@ test("duplicates point at both files and broken reference points at exact source
   await edit(root, intentPath, (s) =>
     s.replace("srs-000007/R-1", "srs-000007/R-8"),
   );
-  const data = await inspectDocuments(await loadConfig(root));
+  const data = await validateProject(await loadConfig(root));
   const d = data.diagnostics.find(
     (d) => d.code === "E_REFERENCE_TARGET" && d.file === intentPath,
   );
   const lines = (await fs.readFile(path.join(root, intentPath), "utf8")).split(
     "\n",
   );
+  assert(d, "Expected diagnostic at the broken reference");
   assert.equal(lines[d.line - 1].slice(d.column - 1), "[srs-000007/R-8]");
 });
 

@@ -1,40 +1,78 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkPath } from "./config.js";
-import { inspectDocuments } from "./documents.js";
-import { CommandError, exitCode } from "./diagnostics.js";
+import type { Config } from "../config.ts";
+import { packageRoot } from "../resources.ts";
+import type { Diagnostic } from "../diagnostics.ts";
+import type { FileHandle } from "node:fs/promises";
+import type { Stats } from "node:fs";
+import { checkPath } from "../filesystem.ts";
+import { indexProject } from "../documents/index.ts";
+import {
+  CommandError,
+  errorCode,
+  errorMessage,
+  exitCode,
+} from "../diagnostics.ts";
 
-const templateRoot = fileURLToPath(new URL("../templates/", import.meta.url));
+const templateRoot = fileURLToPath(new URL("templates/", packageRoot));
 const types = ["intent", "spec", "plan"];
 
+export interface ChangeIO {
+  readdir(path: string): Promise<string[]>;
+  readFile(path: string, encoding: "utf8"): Promise<string>;
+  mkdir(path: string): Promise<unknown>;
+  lstat(path: string): Promise<Stats>;
+  open(
+    path: string,
+    flags: string,
+  ): Promise<Pick<FileHandle, "writeFile" | "close">>;
+}
+interface CreateOptions {
+  io?: ChangeIO;
+  now?: () => Date;
+  templates?: string;
+}
+interface CreateResult {
+  id: string | null;
+  created: string[];
+  diagnostics: Diagnostic[];
+}
+
 export async function createChange(
-  config,
-  title,
-  { io = fs, now = () => new Date(), templates = templateRoot } = {},
-) {
+  config: Config,
+  title: string,
+  {
+    io = fs,
+    now = () => new Date(),
+    templates = templateRoot,
+  }: CreateOptions = {},
+): Promise<CreateResult> {
   if (typeof title !== "string" || !title.trim() || /[\r\n]/.test(title))
     throw new CommandError(
       "E_USAGE",
       "Название должно быть непустой строкой без перевода строки; укажите одно название.",
       "vf",
     );
-  const inspected = await inspectDocuments(config, { indexOnly: true });
+  const inspected = await indexProject(config);
   if (exitCode(inspected.diagnostics))
-    return { ...inspected, created: [], id: null };
+    return { diagnostics: inspected.diagnostics, created: [], id: null };
   let highest = 0;
   for (const document of inspected.documents)
-    if (document.identity?.change)
-      highest = Math.max(highest, Number(document.identity.change.slice(7)));
+    if (document.metadata?.identity?.change)
+      highest = Math.max(
+        highest,
+        Number(document.metadata?.identity.change.slice(7)),
+      );
   try {
     for (const name of await io.readdir(config.directories.changes))
       if (/^change-\d{6}$/.test(name))
         highest = Math.max(highest, Number(name.slice(7)));
   } catch (error) {
-    if (error.code !== "ENOENT")
+    if (errorCode(error) !== "ENOENT")
       throw new CommandError(
         "E_IO",
-        `${error.message}; проверьте доступ к changes.`,
+        `${errorMessage(error)}; проверьте доступ к changes.`,
         config.directories.changes,
       );
   }
@@ -47,7 +85,7 @@ export async function createChange(
   const id = `change-${String(highest + 1).padStart(6, "0")}`;
   const destination = path.join(config.directories.changes, id);
   const date = now().toISOString().slice(0, 10);
-  const values = {
+  const values: Record<string, string> = {
     change_id: id,
     date,
     title: title.replace(/[\\`*_{}[\]()#+.!<>|~-]/g, "\\$&"),
@@ -61,7 +99,7 @@ export async function createChange(
     } catch (error) {
       throw new CommandError(
         "E_IO",
-        `Не удалось прочитать шаблон: ${error.message}; восстановите пакет.`,
+        `Не удалось прочитать шаблон: ${errorMessage(error)}; восстановите пакет.`,
         template,
       );
     }
@@ -77,7 +115,7 @@ export async function createChange(
       }),
     );
   }
-  const created = [];
+  const created: string[] = [];
   try {
     await checkPath(destination);
     let cursor = config.root;
@@ -89,7 +127,10 @@ export async function createChange(
         await io.mkdir(cursor);
         created.push(cursor);
       } catch (error) {
-        if (error.code !== "EEXIST" || !(await io.lstat(cursor)).isDirectory())
+        if (
+          errorCode(error) !== "EEXIST" ||
+          !(await io.lstat(cursor)).isDirectory()
+        )
           throw error;
       }
     }
@@ -110,12 +151,12 @@ export async function createChange(
     const code =
       error instanceof CommandError
         ? error.code
-        : error.code === "EEXIST"
+        : errorCode(error) === "EEXIST"
           ? "E_EXISTS"
           : "E_IO";
     throw new CommandError(
       code,
-      `${error.message}; создано: ${created.map((p) => path.relative(config.root, p)).join(", ") || "ничего"}. Частичный результат сохранён; проверьте его перед продолжением.`,
+      `${errorMessage(error)}; создано: ${created.map((p) => path.relative(config.root, p)).join(", ") || "ничего"}. Частичный результат сохранён; проверьте его перед продолжением.`,
       destination,
     );
   }
