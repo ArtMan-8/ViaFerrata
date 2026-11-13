@@ -1,0 +1,31 @@
+{
+  "name": "viaferrata",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Create change documents and validate their basic structure",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "bin": {
+    "vf": "bin/vf.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "instructions",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "remark-parse": "11.0.0",
+    "smol-toml": "1.9.1",
+    "unified": "11.0.5",
+    "yaml": "2.9.1"
+  }
+}
