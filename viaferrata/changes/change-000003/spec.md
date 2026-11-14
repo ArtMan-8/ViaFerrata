@@ -4,26 +4,23 @@ status: approved
 created: "2026-11-13"
 updated: "2026-11-14"
 scope:
+  - ".vscode/**"
   - "bin/**"
-  - "src/**"
-  - "scripts/**"
-  - "tests/**"
-  - "templates/**"
-  - "instructions/**"
   - "docs/**"
-  - "README.md"
-  - "AGENTS.md"
-  - "package.json"
-  - "package-lock.json"
-  - "tsconfig.json"
-  - "tsconfig.build.json"
-  - "oxlint.config.mts"
-  - "oxfmt.config.mts"
+  - "instructions/**"
+  - "scripts/**"
+  - "src/**"
+  - "templates/**"
+  - "tests/**"
   - ".markdownlint-cli2.mjs"
-  - ".vscode/settings.json"
-  - ".vscode/extensions.json"
-  - "viaferrata/changes/change-000001/**"
-  - "viaferrata/changes/change-000002/**"
+  - "AGENTS.md"
+  - "oxfmt.config.mts"
+  - "oxlint.config.mts"
+  - "package-lock.json"
+  - "package.json"
+  - "README.md"
+  - "tsconfig.build.json"
+  - "tsconfig.json"
 ---
 
 # Полное причёсывание кода и подключение инженерных проверок
@@ -36,7 +33,7 @@ scope:
 
 Сохраняются текущая TypeScript-основа, Node.js 24.x, npm, версия пакета 0.1.0, private: true и исполнение установленного JavaScript без devDependencies. Новые инструменты добавляются как зависимости разработки с точными версиями и lockfile. Runtime-зависимости не заменяются ради унификации стиля.
 
-За пределами дельты R-6 не входят новые команды и возможности CLI, смена формата документов, полная поддержка профилей, runner/evidence/finish, hooks, CI-сервис, новый агентный runtime, изменение LICENSE, публикация и release. Смысл завершённых change-000001 и change-000002 сохраняется; допускается их механическое форматирование. Конфигурация viaferrata.toml и исходная заметка в .viaferrata не редактируются. Работа ограничена текущим репозиторием. Само указание пути в scope не требует его изменения. Независимые фикстуры в tests/fixtures, после переноса в src/tests/fixtures, исключаются из массового форматирования; их целенаправленные дополнения разрешены для регрессионных проверок.
+За пределами дельты R-6 не входят новые команды и возможности CLI, смена формата документов, полная поддержка профилей, runner/evidence/finish, hooks, CI-сервис, новый агентный runtime, изменение LICENSE, публикация и release. Смысл завершённых change-000001 и change-000002 сохраняется; допускается их механическое форматирование. Конфигурация viaferrata.toml не редактируется; существующие локальные материалы сохраняются. Работа ограничена текущим репозиторием. Само указание пути в scope не требует его изменения. Независимые фикстуры в tests/fixtures, после переноса в src/tests/fixtures, исключаются из массового форматирования; их целенаправленные дополнения разрешены для регрессионных проверок.
 
 ## Requirements
 
