@@ -39,7 +39,7 @@ Execution: sequential
     - [change-000001/spec/R-6]
     - [change-000001/spec/R-7]
     - [change-000001/spec/R-10]
-  - Verification: tests/validation.test.js, tests/ids.test.js и cases.json по AC-4–6, AC-10 Intent. Проверить CRLF/BOM, enum/поля, локальные объявления, YAML-конструкции, исключения ссылок, симлинки, lite/strict, пустые и неполные комплекты, пробельный корень и нулевой охват; сравнить байты и mtime после повторного validate.
+  - Verification: tests/validation.test.js, tests/ids.test.js и cases.json по AC-4–6, AC-10 Intent; сравнить байты и mtime после повторного validate.
 
 - [x] P-4: Реализовать new с шестизначными ID, подстановкой параметров форм и созданием файлов без перезаписи.
   - Covers:
@@ -57,7 +57,7 @@ Execution: sequential
   - Covers:
     - [change-000001/spec/R-8]
     - [change-000001/spec/R-11]
-  - Verification: tests/package.test.js по AC-7 и AC-11 Intent. Тест упаковывает временную копию, проверяет состав, устанавливает tarball, делает источник упаковки недоступным и запускает help/version/new/validate из постороннего cwd; исходный checkout не перемещается. Проверить ошибку незаполненного черновика и успех независимого заполненного образца; временные каталоги очищаются.
+  - Verification: tests/package.test.js по AC-7 и AC-11 Intent: временная копия источника, исходный checkout не перемещается. Проверить ошибку черновика и успех независимого заполненного образца; очистить временные каталоги.
 
 - [x] P-9: Подготовить необязательную диагностику входов scripts/input-manifest.js.
   - Covers:

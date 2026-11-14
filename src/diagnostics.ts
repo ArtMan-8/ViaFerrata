@@ -1,6 +1,9 @@
+import { constants } from "node:os";
+
 export type DiagnosticCode =
   | "E_UNSUPPORTED"
   | "E_IO"
+  | "E_INTERNAL"
   | "E_CONFIG"
   | "E_USAGE"
   | "E_RUNTIME"
@@ -39,6 +42,11 @@ export function errorCode(error: unknown): string | undefined {
 }
 
 export function errorMessage(error: unknown): string {
+  if (error instanceof AggregateError) {
+    const errors: unknown[] = error.errors;
+    return `${error.message}: ${errors.map(errorMessage).join("; ")}`;
+  }
+
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -46,8 +54,13 @@ export class CommandError extends Error {
   code: DiagnosticCode;
   file: string;
 
-  constructor(code: DiagnosticCode, message: string, file = "viaferrata.toml") {
-    super(message);
+  constructor(
+    code: DiagnosticCode,
+    message: string,
+    file = "viaferrata.toml",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
     this.code = code;
     this.file = file;
   }
@@ -74,6 +87,7 @@ export function exitCode(items: readonly Diagnostic[]): 0 | 1 | 2 {
   if (
     items.some((d) =>
       [
+        "E_INTERNAL",
         "E_IO",
         "E_CONFIG",
         "E_UNSUPPORTED",
@@ -83,8 +97,10 @@ export function exitCode(items: readonly Diagnostic[]): 0 | 1 | 2 {
         "E_ID_EXHAUSTED",
       ].includes(d.code),
     )
-  )
+  ) {
     return 2;
+  }
+
   return items.some((d) => d.severity === "error") ? 1 : 0;
 }
 
@@ -94,12 +110,33 @@ export function sortDiagnostics(items: Diagnostic[]) {
       ? -1
       : a.file > b.file
         ? 1
-        : a.line - b.line ||
-          a.column - b.column ||
-          a.code.localeCompare(b.code),
+        : a.line - b.line || a.column - b.column || a.code.localeCompare(b.code),
   );
 }
 
 export function formatDiagnostic(d: Diagnostic) {
   return `${d.file}:${d.line}:${d.column} ${d.code}: ${d.message}`;
+}
+
+const fileErrorCodes = new Set(Object.keys(constants.errno));
+export function isFileError(error: unknown): boolean {
+  if (error instanceof AggregateError) {
+    const errors: unknown[] = error.errors;
+    return errors.length > 0 && errors.every(isFileError);
+  }
+
+  return fileErrorCodes.has(errorCode(error) ?? "");
+}
+
+export function errorStack(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const nested: unknown[] = error instanceof AggregateError ? error.errors : [];
+  if (error.cause !== undefined) {
+    nested.push(error.cause);
+  }
+
+  return [error.stack ?? error.message, ...nested.map(errorStack)].join("\nCaused by: ");
 }

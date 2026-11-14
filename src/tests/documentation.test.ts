@@ -1,11 +1,12 @@
-import { errorCode } from "../src/diagnostics.ts";
-import test from "node:test";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { repo } from "./helpers.ts";
-import { assertLocalLinks } from "./document-links.ts";
+import test from "node:test";
 
-test("repository documentation links resolve within this repository", async () => {
+import { errorCode } from "../diagnostics.ts";
+import { assertLocalLinks } from "./document-links.ts";
+import { repo } from "./helpers.ts";
+
+void test("repository documentation links resolve within this repository", async () => {
   const files = ["README.md", "AGENTS.md"];
   async function walk(relative: string) {
     let entries;
@@ -14,16 +15,22 @@ test("repository documentation links resolve within this repository", async () =
         withFileTypes: true,
       });
     } catch (error) {
-      if (relative === "docs" && errorCode(error) === "ENOENT") return;
+      if (relative === "docs" && errorCode(error) === "ENOENT") {
+        return;
+      }
       throw error;
     }
     for (const entry of entries) {
       const file = `${relative}/${entry.name}`;
-      if (entry.isDirectory()) await walk(file);
-      else if (entry.isFile()) files.push(file);
+      if (entry.isDirectory()) {
+        await walk(file);
+      } else if (entry.isFile()) {
+        files.push(file);
+      }
     }
   }
-  for (const directory of ["docs", "instructions", "templates", "viaferrata"])
+  for (const directory of ["docs", "instructions", "templates", "viaferrata"]) {
     await walk(directory);
+  }
   await assertLocalLinks(repo, files);
 });
