@@ -1,52 +1,95 @@
-import { CommandError } from "../diagnostics.ts";
+import { parseArgs } from "node:util";
+
+import { CommandError, errorCode } from "../diagnostics.ts";
 
 export type Arguments =
   | { command: "help" }
   | { command: "version" }
-  | { command: "validate"; root: string }
-  | { command: "init"; root: string; profile?: "lite" | "strict" }
-  | { command: "new"; root: string; title: string };
+  | { command: "validate" }
+  | { command: "init"; path?: string; profile?: "lite" | "strict" }
+  | { command: "new"; title: string };
 
 export function argumentsFor(argv: string[]): Arguments {
-  if (!argv.length || (argv.length === 1 && argv[0] === "--help"))
+  const usage = () =>
+    new CommandError("E_USAGE", "Неверная команда, флаг или аргументы; см. vf --help.", "vf");
+
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: argv,
+      options: {
+        help: { type: "boolean" },
+        version: { type: "boolean" },
+        profile: { type: "string" },
+      },
+      allowPositionals: true,
+      strict: true,
+      tokens: true,
+    });
+  } catch (error) {
+    if (errorCode(error)?.startsWith("ERR_PARSE_ARGS_")) {
+      throw usage();
+    }
+
+    throw error;
+  }
+
+  const seen = new Set<string>();
+  for (const token of parsed.tokens) {
+    if (token.kind !== "option") {
+      continue;
+    }
+
+    if (seen.has(token.name)) {
+      throw usage();
+    }
+
+    seen.add(token.name);
+  }
+
+  const { values, positionals } = parsed;
+  const [command, argument] = positionals;
+  if (values.help || values.version) {
+    if (seen.size !== 1 || positionals.length) {
+      throw usage();
+    }
+
+    return { command: values.help ? "help" : "version" };
+  }
+
+  if (command === undefined && !seen.size) {
     return { command: "help" };
-  if (argv.length === 1 && argv[0] === "--version")
-    return { command: "version" };
-  const args = [...argv];
-  let root = process.cwd();
-  if (args[0] === "--root") {
-    args.shift();
-    const rootArgument = args.shift();
-    if (!rootArgument || rootArgument.startsWith("--"))
-      throw new CommandError(
-        "E_USAGE",
-        "Укажите путь после --root; см. vf --help.",
-        "vf",
-      );
-    root = rootArgument;
   }
-  const [command, title] = args;
-  if (command === "init") {
-    if (args.length === 1) return { command, root };
-    if (
-      args.length === 3 &&
-      title === "--profile" &&
-      (args[2] === "lite" || args[2] === "strict")
-    )
-      return { command, root, profile: args[2] };
+
+  if (values.profile !== undefined && command !== "init") {
+    throw usage();
   }
-  if (command === "validate" && args.length === 1) return { command, root };
+
+  if (command === "init" && positionals.length <= 2) {
+    if (argument !== undefined && (!argument.trim() || argument.startsWith("--"))) {
+      throw usage();
+    }
+
+    if (values.profile !== undefined && values.profile !== "lite" && values.profile !== "strict") {
+      throw usage();
+    }
+
+    return { command, path: argument, profile: values.profile };
+  }
+
+  if (command === "validate" && positionals.length === 1) {
+    return { command };
+  }
+
   if (
     command === "new" &&
-    args.length === 2 &&
-    !title.startsWith("--") &&
-    title.trim() &&
-    !/[\r\n]/.test(title)
-  )
-    return { command, root, title };
-  throw new CommandError(
-    "E_USAGE",
-    "Неверная команда, флаг или аргументы; см. vf --help.",
-    "vf",
-  );
+    positionals.length === 2 &&
+    argument?.trim() &&
+    !argument.startsWith("--") &&
+    !/[\r\n]/.test(argument)
+  ) {
+    return { command, title: argument };
+  }
+
+  throw usage();
 }
