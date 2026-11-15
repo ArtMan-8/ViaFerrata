@@ -3,7 +3,7 @@ import { CommandError, errorCode } from "../diagnostics.ts";
 const begin = "<!-- viaferrata:begin -->";
 const end = "<!-- viaferrata:end -->";
 
-const agentBlock = `${begin}
+const previousAgentBlock = `${begin}
 
 ## ViaFerrata
 
@@ -16,6 +16,16 @@ const agentBlock = `${begin}
 Validate подтверждает только заявленную структуру, не согласование и завершение.
 ${end}
 `;
+
+const agentBlock = previousAgentBlock.replace(
+  "Прочитай локальные правила проекта. Запусти используемый vf с --help и открой\n" +
+    "указанные инструкции и руководство форм из установленного пакета.\n" +
+    "Если vf отсутствует в PATH, используй путь к установленному bin.",
+  "Прочитай локальные правила проекта. Используй выбранный способ запуска:\n" +
+    "npx viaferrata@0.1.0 --help либо vf --help при глобальной установке.\n" +
+    "Открой указанные инструкции и руководство форм из установленного пакета.\n" +
+    "В новой сессии повтори help тем же способом; путь кеша npm не закрепляй.",
+);
 
 export function decode(bytes: Buffer, file: string): string {
   try {
@@ -52,13 +62,17 @@ export function agentsText(original: string, file: string): string {
   const finish = normalized.indexOf(end) + end.length;
   const expected = agentBlock.trimEnd();
   const actual = normalized.slice(start, finish);
-  const legacy = expected.replace(`${begin}\n\n`, `${begin}\n`);
+  const previous = previousAgentBlock.trimEnd();
+  const legacy = previous.replace(`${begin}\n\n`, `${begin}\n`);
   if (
     starts === 1 &&
     ends === 1 &&
     (start === 0 || normalized[start - 1] === "\n") &&
     (finish === normalized.length || normalized[finish] === "\n") &&
-    (actual === expected || actual === legacy)
+    (actual === expected ||
+      actual === expected.replace(`${begin}\n\n`, `${begin}\n`) ||
+      actual === previous ||
+      actual === legacy)
   ) {
     return original;
   }

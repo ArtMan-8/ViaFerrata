@@ -33,22 +33,28 @@
 
 ## Быстрый старт
 
-Требуются Node.js 24.x и npm. Пакет пока не опубликован; запуск из каталога исходников:
+Требуются Node.js 24.x и npm.
+
+Выберите один способ запуска.
+
+Через npx:
 
 ```sh
-npm ci
-node bin/vf.ts --help
-node bin/vf.ts init /path/to/project --profile lite
-cd /path/to/project
-node /path/to/ViaFerrata/bin/vf.ts new "Название задачи"
-node /path/to/ViaFerrata/bin/vf.ts validate
+npx viaferrata@0.1.0 --help
+npx viaferrata@0.1.0 init /path/to/project --profile lite
 ```
 
-Замените пути на свои. `new` и `validate` находят ближайший `viaferrata.toml` вверх от рабочего каталога.
+Через глобально установленный vf:
 
-После `init` работайте с агентом по добавленной навигации в AGENTS.md. Для deep-задачи поручите агенту заполнить созданные черновики и согласуйте Intent, Spec и Plan перед реализацией. Незаполненные черновики не проходят проверку. Для vibe-задачи запуск `new` не требуется.
+```sh
+npm install -g viaferrata@0.1.0
+vf --help
+vf init /path/to/project --profile lite
+```
 
-Повторный `init` сохраняет готовое подключение; при существующей конфигурации `--profile` можно опустить. При конфликте с изменённым блоком ViaFerrata в AGENTS.md сохраните ручные дополнения вне блока и разрешите конфликт перед повтором. При ошибке записи исправьте указанную причину и повторите команду: готовые части сохранятся.
+После init откройте проект с агентом и назовите выбранный способ запуска. Для deep-задачи агент вызывает `new`, заполняет Intent/Spec/Plan и согласует их с вами перед реализацией; при её начале ведёт Journal. Для vibe-задачи команда new не требуется. В новой сессии агент повторяет help выбранным способом и находит текущие инструкции.
+
+[Подробное руководство](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/docs/quickstart.md) описывает полный путь до validate, повтор init и продолжение работы.
 
 ## Ограничения
 
@@ -58,15 +64,17 @@ CLI выполняет базовые структурные проверки. �
 
 ## Документация
 
-- [Процесс работы с агентом](instructions/workflow.md).
-- [Шаблоны, метаданные и связи документов](templates/README.md).
-- [Глоссарий](docs/GLOSSARY.md).
+- [Процесс работы с агентом](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/instructions/workflow.md).
+- [Шаблоны, метаданные и связи документов](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/templates/README.md).
+- [Глоссарий в репозитории](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/docs/GLOSSARY.md).
 
 ## Разработка
 
-Принципы развития самой ViaFerrata и правила работы в её репозитории описаны в [AGENTS.md](AGENTS.md).
+Принципы развития самой ViaFerrata и правила работы в её репозитории описаны в [AGENTS.md в репозитории](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/AGENTS.md).
 
 ```sh
+npm ci
+node bin/vf.ts --help
 npm run lint
 npm run format:check
 npm run typecheck
@@ -74,4 +82,4 @@ npm run test:all
 npm run build
 ```
 
-`npm test` запускает локальные тесты; `npm run test:package` проверяет установку и работу пакета и требует доступа к npm registry. `npm run test:all` выполняет оба набора. `npm pack` собирает JavaScript и создаёт архив для локальной установки.
+`npm test` запускает локальные тесты; `npm run test:package` проверяет установку и работу пакета и требует доступа к npm registry. `npm run test:all` выполняет оба набора. `npm pack` собирает JavaScript и создаёт архив пакета.

@@ -13,7 +13,6 @@ void test(
     const { temp, source } = await packagingSource(t);
     const entry = path.join(source, "bin/vf.ts");
     assert.match(command(process.execPath, [entry, "--help"], temp), /new/);
-    command(process.execPath, [path.join(source, "scripts/input-manifest.ts")], temp);
     await write(source, "src/obsolete.ts", "export const obsolete = true;\n");
     command("npm", ["run", "build"], source);
     await fs.access(path.join(source, "dist/src/obsolete.js"));

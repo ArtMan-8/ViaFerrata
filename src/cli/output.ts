@@ -6,7 +6,7 @@ import type { Config } from "../config.ts";
 import { exitCode } from "../diagnostics.ts";
 import { instructionFiles } from "../resources.ts";
 
-export const help = `ViaFerrata — создание change и базовая формальная проверка
+export const help = `ViaFerrata — подключение проекта, создание change и структурная проверка документов
 
 vf --help
 vf --version
@@ -16,10 +16,11 @@ vf validate
 
 new/validate ищут ближайший viaferrata.toml вверх от cwd; неверная конфигурация останавливает поиск.
 init использует path либо cwd; первое подключение внутри другого проекта запрещено.
-Опции допускаются до и после команды, значения — через пробел или =; повторы запрещены.
+--profile допускается до и после init, значение — через пробел или =; повторы запрещены.
+--help и --version используются самостоятельно, без команды и других опций.
 init подключает существующий каталог; для новой конфигурации обязателен --profile.
 new создаёт три draft-документа по библиотечным формам с optional-подсказками.
-validate проверяет базовую структуру, ID и существование ссылок, без изменения файлов.
+validate проверяет метаданные, ID, обязательные разделы, placeholders и существование ссылок, без изменения файлов.
 Полная поддержка lite/strict, evidence и контроль завершения пока отсутствуют.
 Инструкции: ${instructionFiles.workflow}
 Руководство форм: ${instructionFiles.templates}
