@@ -1,9 +1,20 @@
 {
   "name": "viaferrata",
   "version": "0.1.0",
-  "private": true,
-  "description": "Create change documents and validate their basic structure",
+  "description": "Instructions, document templates, and CLI for intent-driven and spec-driven development (SDD) with AI agents",
+  "keywords": [
+    "ViaFerrata",
+    "ai",
+    "cli",
+    "sdd"
+  ],
+  "homepage": "https://github.com/ArtMan-8/ViaFerrata#readme",
   "license": "MIT",
+  "author": "Vladimir Artyukhov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArtMan-8/ViaFerrata.git"
+  },
   "bin": {
     "vf": "dist/bin/vf.js"
   },
@@ -12,11 +23,13 @@
     "templates",
     "instructions",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
   "scripts": {
     "build": "node scripts/build.ts",
+    "changelog": "node scripts/changelog-input.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint --deny-warnings bin src scripts && markdownlint-cli2",

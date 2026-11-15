@@ -17,6 +17,9 @@ void test("manifest records exact bytes, new files and deterministic path order"
     "package-lock.json",
     "viaferrata.toml",
     "README.md",
+    "CHANGELOG.md",
+    "docs/quickstart.md",
+    "docs/releasing.md",
     "LICENSE",
     "tsconfig.json",
     "tsconfig.build.json",
@@ -33,8 +36,11 @@ void test("manifest records exact bytes, new files and deterministic path order"
     first.files.map((file) => file.path),
     [
       ".markdownlint-cli2.mjs",
+      "CHANGELOG.md",
       "LICENSE",
       "README.md",
+      "docs/quickstart.md",
+      "docs/releasing.md",
       "oxfmt.config.mts",
       "oxlint.config.mts",
       "package-lock.json",
@@ -78,6 +84,9 @@ void test("manifest records exact bytes, new files and deterministic path order"
     "oxlint.config.mts",
     "oxfmt.config.mts",
     ".markdownlint-cli2.mjs",
+    "CHANGELOG.md",
+    "docs/quickstart.md",
+    "docs/releasing.md",
   ]) {
     const before = await inputManifest(root);
     await write(root, name, '{"compilerOptions": {"strict": true}}');

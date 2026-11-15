@@ -7,7 +7,7 @@ import { assertLocalLinks } from "./document-links.ts";
 import { repo } from "./helpers.ts";
 
 void test("repository documentation links resolve within this repository", async () => {
-  const files = ["README.md", "AGENTS.md"];
+  const files = ["README.md", "AGENTS.md", "CHANGELOG.md"];
   async function walk(relative: string) {
     let entries;
     try {

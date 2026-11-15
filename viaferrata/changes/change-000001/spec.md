@@ -2,21 +2,21 @@
 id: change-000001/spec
 status: approved
 created: "2026-11-12"
-updated: "2026-11-12"
+updated: "2026-11-14"
 scope:
   - "bin/**"
+  - "docs/**"
+  - "instructions/workflow.md"
+  - "scripts/**"
   - "src/**"
   - "templates/**"
-  - "instructions/workflow.md"
   - "tests/**"
-  - "package.json"
-  - "package-lock.json"
-  - "viaferrata.toml"
   - ".gitignore"
-  - "README.md"
   - "AGENTS.md"
-  - "docs/**"
-  - "scripts/**"
+  - "package-lock.json"
+  - "package.json"
+  - "README.md"
+  - "viaferrata.toml"
 ---
 
 # Контракт первого CLI

@@ -24,7 +24,7 @@ export function execute(
   // npm 11 exports .npmrc allow-scripts as an env option during npm test,
   // then rejects that env option in nested local installs. The explicit
   // --ignore-scripts below disables all lifecycle scripts in this smoke test.
-  if (program === "npm") {
+  if (program === "npm" || program === "npx") {
     for (const key of Object.keys(childEnv)) {
       if (/^npm_config_allow[_-]scripts$/i.test(key)) {
         delete childEnv[key];
@@ -58,14 +58,11 @@ export async function packagingSource(t: TestContext) {
     "scripts",
     "tsconfig.json",
     "tsconfig.build.json",
-    "oxlint.config.mts",
-    "oxfmt.config.mts",
-    ".markdownlint-cli2.mjs",
     "templates",
     "instructions",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE",
-    "viaferrata.toml",
     "node_modules",
   ]) {
     // Copy installed build dependencies too: no symlinks back to the checkout.
@@ -84,6 +81,7 @@ export async function installPackage(source: string, temp: string) {
   // Sentinels ensure the files allowlist really excludes project and test data.
   await write(source, "viaferrata/changes/private.md", "must not ship");
   await write(source, "src/tests/private.txt", "must not ship");
+  await write(source, "docs/quickstart.md", "must not ship");
   await write(source, ".viaferrata/log.txt", "must not ship");
 
   const npmArgs = [
@@ -95,14 +93,25 @@ export async function installPackage(source: string, temp: string) {
   ];
   // --ignore-scripts skips prepack, so explicitly build this fresh source first.
   command("npm", ["run", "build"], source);
-  const dryRun: unknown = JSON.parse(
-    command("npm", ["pack", "--dry-run", "--json", ...npmArgs], source),
+  const packed = await checkPackageContents(
+    command("npm", ["pack", "--json", "--pack-destination", temp, ...npmArgs], source),
   );
-  assert(Array.isArray(dryRun) && dryRun.length === 1);
-  const dry: unknown = dryRun[0];
-  objectValue(dry);
-  assert(Array.isArray(dry.files));
-  const names = dry.files.map((file: unknown) => {
+  const result = await installTarball(path.join(temp, packed.filename), temp, packed.names);
+  await fs.rename(source, source + "-unavailable");
+  assert.equal(await fs.stat(source).catch(() => null), null);
+  return result;
+}
+
+async function checkPackageContents(json: string) {
+  const packResult: unknown = JSON.parse(json);
+  assert(Array.isArray(packResult) && packResult.length === 1);
+  const packed: unknown = packResult[0];
+  objectValue(packed);
+  assert.equal(packed.name, "viaferrata", "Unexpected package name");
+  assert.equal(packed.version, await packageVersion(), "Unexpected package version");
+  assert(typeof packed.filename === "string");
+  assert(Array.isArray(packed.files));
+  const names = packed.files.map((file: unknown) => {
     objectValue(file);
     assert(typeof file.path === "string");
     return file.path;
@@ -122,6 +131,8 @@ export async function installPackage(source: string, temp: string) {
     "templates/adr.md",
     "templates/README.md",
     "instructions/workflow.md",
+    "CHANGELOG.md",
+    "README.md",
     "package.json",
     "LICENSE",
   ]) {
@@ -130,7 +141,7 @@ export async function installPackage(source: string, temp: string) {
 
   assert(
     names.every((n) =>
-      /^(dist\/(?:bin|src)\/(?:[^/]+\/)*[^/]+\.js$|templates\/|instructions\/|README\.md$|LICENSE$|package\.json$)/.test(
+      /^(dist\/(?:bin|src)\/(?:[^/]+\/)*[^/]+\.js$|templates\/|instructions\/|CHANGELOG\.md$|README\.md$|LICENSE$|package\.json$)/.test(
         n,
       ),
     ),
@@ -140,13 +151,29 @@ export async function installPackage(source: string, temp: string) {
     !names.some((name) => /(?:\.test\.js$|^dist\/src\/tests\/|^tests\/)/.test(name)),
     names.join("\n"),
   );
-  const packResult: unknown = JSON.parse(
-    command("npm", ["pack", "--json", "--pack-destination", temp, ...npmArgs], source),
+  return { filename: packed.filename, names };
+}
+
+export async function inspectTarball(tarball: string, temp: string) {
+  assert((await fs.stat(tarball)).isFile(), "VF_TARBALL must name a local file");
+  return checkPackageContents(
+    command(
+      "npm",
+      [
+        "pack",
+        tarball,
+        "--dry-run",
+        "--json",
+        "--ignore-scripts",
+        "--cache",
+        path.join(temp, "inspect-cache"),
+      ],
+      temp,
+    ),
   );
-  assert(Array.isArray(packResult) && packResult.length === 1);
-  const packed: unknown = packResult[0];
-  objectValue(packed);
-  assert(typeof packed.filename === "string");
+}
+
+export async function installTarball(tarball: string, temp: string, names: string[]) {
   const install = path.join(temp, "installed");
   await fs.mkdir(install);
   const cache = path.join(temp, "install-cache");
@@ -168,14 +195,16 @@ export async function installPackage(source: string, temp: string) {
       "--fetch-timeout=60000",
       "--prefix",
       install,
-      path.join(temp, packed.filename),
-      ...npmArgs,
+      tarball,
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "--logs-dir",
+      path.join(temp, "npm-logs"),
     ],
     temp,
     180000,
   );
-  await fs.rename(source, source + "-unavailable");
-  assert.equal(await fs.stat(source).catch(() => null), null);
   for (const name of [
     "typescript",
     "@types/node",
@@ -189,7 +218,7 @@ export async function installPackage(source: string, temp: string) {
       code: "ENOENT",
     });
   }
-  return { install, names };
+  return { install, names, tarball };
 }
 
 export async function verifyInstallation(install: string, temp: string, names: string[]) {

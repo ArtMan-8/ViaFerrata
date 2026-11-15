@@ -2,19 +2,17 @@
 id: change-000002/spec
 status: approved
 created: "2026-11-13"
-updated: "2026-11-13"
+updated: "2026-11-14"
 scope:
-  - "src/cli/main.ts"
-  - "src/cli/arguments.ts"
-  - "src/cli/output.ts"
+  - "instructions/workflow.md"
+  - "src/cli/**"
+  - "src/commands/init.ts"
   - "src/config.ts"
   - "src/diagnostics.ts"
-  - "src/commands/init.ts"
   - "src/filesystem.ts"
   - "tests/**"
-  - "README.md"
   - "AGENTS.md"
-  - "instructions/workflow.md"
+  - "README.md"
 ---
 
 # Контракт подключения проекта

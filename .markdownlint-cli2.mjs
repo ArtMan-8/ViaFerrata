@@ -1,14 +1,6 @@
 export default {
-  globs: [
-    "README.md",
-    "AGENTS.md",
-    "docs/**/*.md",
-    "instructions/**/*.md",
-    "templates/**/*.md",
-    "viaferrata/**/*.md",
-    "src/tests/**/*.md",
-  ],
-  ignores: ["node_modules/**", "dist/**", ".viaferrata/**", "src/tests/fixtures/**", "*.tgz"],
+  globs: ["**/*.md"],
+  ignores: ["node_modules/**", "dist/**", ".viaferrata/**", "src/tests/fixtures/**"],
   config: {
     default: true,
     // Oxfmt owns wrapping and table layout; long logical IDs must remain intact.

@@ -25,6 +25,38 @@ void test("init preserves a formatted AGENTS block and the legacy layout", async
   }
 });
 
+void test("init preserves previous navigation in both layouts with BOM and CRLF", async (t) => {
+  const root = await temporary(t);
+  await initProject(root, "lite");
+  const previous = `<!-- viaferrata:begin -->
+
+## ViaFerrata
+
+Прочитай локальные правила проекта. Запусти используемый vf с --help и открой
+указанные инструкции и руководство форм из установленного пакета.
+Если vf отсутствует в PATH, используй путь к установленному bin.
+Прочитай viaferrata.toml; текущий комплект находится в <documents_root>/changes/,
+где documents_root по умолчанию — viaferrata. Выбери комплект по текущей задаче.
+До Implement согласуй Intent/Spec/Plan; с началом Implement веди Journal.
+Validate подтверждает только заявленную структуру, не согласование и завершение.
+<!-- viaferrata:end -->
+`;
+  for (const compact of [false, true]) {
+    for (const crlf of [false, true]) {
+      const block = compact ? previous.replace("begin -->\n\n", "begin -->\n") : previous;
+      const content = "Правила пользователя\n" + block + "\nДополнения\n";
+      await write(root, "AGENTS.md", crlf ? "\uFEFF" + content.replaceAll("\n", "\r\n") : content);
+      const before = await snapshot(root);
+      await initProject(root);
+      assert.deepEqual(await snapshot(root), before);
+    }
+  }
+  await write(root, "AGENTS.md", previous.replace("путь к установленному bin", "другую команду"));
+  const before = await snapshot(root);
+  await assert.rejects(initProject(root), { code: "E_EXISTS" });
+  assert.deepEqual(await snapshot(root), before);
+});
+
 for (const change of [
   (s: string) => s.replace("Прочитай", "Изменено вручную"),
   (s: string) => s.replace("<!-- viaferrata:end -->", ""),
