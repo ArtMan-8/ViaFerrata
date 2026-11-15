@@ -17,6 +17,7 @@ scope:
   - "src/commands/init.test.ts"
   - "src/tests/**"
   - "templates/README.md"
+  - "templates/spec.md"
   - ".markdownlint-cli2.mjs"
   - "AGENTS.md"
   - "CHANGELOG.md"
@@ -109,6 +110,6 @@ Docs/releasing.md содержит команды и порядок ручног
 
 ## Definition of Done
 
-Выполнены AC-1–AC-6. Команды: npm ci; npm run lint; npm run format:check; npm run typecheck; npm run test:all; npm run build; node bin/vf.ts validate; npm audit; npm audit --omit=dev; git diff --check; git diff --cached --check. После изменения кода перед ними выполнить npm run lint:fix и npm run format. Результат audit оценивается по R-7, а не только по exit code.
+Выполнены AC-1–AC-6 и применимые [проверки проекта](../../../AGENTS.md#проверки). Специфические проверки выпуска определены в R-7/R-8. Результат audit оценивается по R-7, а не только по exit code.
 
 Проверены scope, состав поставки, очистка временных данных, инструкции на поведении агента, сам локальный кандидат из trunk, локально опубликованная версия, Git-тег и GitHub Release. Journal хранит факты и ограничения; Plan — единственный checklist. При готовом кандидате и ожидающей публикации задача остаётся in_progress. Blocked применяется при конкретном препятствии с условием продолжения; validate не подтверждает человеческое согласование или завершение.
