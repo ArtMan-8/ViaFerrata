@@ -29,6 +29,7 @@ export interface DocumentFile {
   readonly absolute: string;
   readonly file: string;
   readonly category: Category;
+  readonly archived?: boolean;
 }
 
 export interface ReadDocument extends DocumentFile, DocumentSource {}
@@ -46,7 +47,17 @@ export interface DocumentMetadata {
   readonly references: readonly Reference[];
 }
 
+export interface RequirementDelta {
+  readonly local: string;
+  readonly operation: "add" | "modify" | "remove";
+  readonly target: string;
+  readonly offset: number;
+  readonly before?: string;
+  readonly after?: string;
+}
+
 export interface DocumentBody {
+  readonly deltas?: readonly RequirementDelta[];
   readonly locals: ReadonlySet<string>;
   readonly references: readonly Reference[];
 }

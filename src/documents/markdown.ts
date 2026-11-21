@@ -1,5 +1,6 @@
 import type { Heading } from "mdast";
 
+import { parseDeltas } from "./deltas.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
 import {
   activeMarkdownNodes,
@@ -58,6 +59,31 @@ export function parseDocumentBody(
         "E_STRUCTURE",
         `Требуется один H2 ${name}; добавьте раздел или удалите дубликат.`,
       );
+    }
+  }
+
+  if (documentType === "adr") {
+    const outcome = headings.find((node) => node.depth === 2 && plain(node) === "Decision Outcome");
+    const end =
+      headings.find(
+        (node) =>
+          node.depth <= 2 &&
+          node.position.start.offset > (outcome?.position.start.offset ?? Infinity),
+      )?.position.start.offset ?? source.length;
+
+    for (const name of ["Consequences", "Confirmation"]) {
+      if (
+        !outcome ||
+        headings.filter(
+          (node) =>
+            node.depth === 3 &&
+            plain(node) === name &&
+            node.position.start.offset > outcome.position.end.offset &&
+            node.position.start.offset < end,
+        ).length !== 1
+      ) {
+        diagnostics.add("E_STRUCTURE", `Требуется один H3 ${name} внутри Decision Outcome.`);
+      }
     }
   }
 
@@ -253,5 +279,13 @@ export function parseDocumentBody(
     }
   }
 
-  return { value: { locals, references }, diagnostics: diagnostics.items };
+  const deltas =
+    documentType === "spec"
+      ? parseDeltas(input, metadata.bodyOffset)
+      : { value: [], diagnostics: [] };
+
+  return {
+    value: { locals, references, deltas: deltas.value },
+    diagnostics: [...diagnostics.items, ...deltas.diagnostics],
+  };
 }

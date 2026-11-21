@@ -18,7 +18,7 @@ export async function discoverDocuments(config: Config): Promise<Result<Discover
   const files: DocumentFile[] = [];
   const changeDirectories: string[] = [];
 
-  async function walk(directory: string, category: Category) {
+  async function walk(directory: string, category: Category, archived = false) {
     let entries;
     try {
       entries = await fs.readdir(directory, { withFileTypes: true });
@@ -54,19 +54,21 @@ export async function discoverDocuments(config: Config): Promise<Result<Discover
         );
       } else if (entry.isDirectory()) {
         if (
-          directory === config.directories.changes &&
+          (directory === config.directories.changes ||
+            directory === path.join(config.documentsRoot, "archive", "changes")) &&
           identity(`${entry.name}/intent`)?.change === entry.name
         ) {
           changeDirectories.push(entry.name);
         }
 
         if (![".git", ".viaferrata", "node_modules"].includes(entry.name)) {
-          await walk(absolute, category);
+          await walk(absolute, category, archived);
         }
       } else if (entry.isFile() && entry.name.endsWith(".md")) {
         files.push({
           absolute,
           category,
+          archived,
           file: path.relative(config.root, absolute),
         });
       }
@@ -75,6 +77,7 @@ export async function discoverDocuments(config: Config): Promise<Result<Discover
 
   for (const category of categories) {
     await walk(config.directories[category], category);
+    await walk(path.join(config.documentsRoot, "archive", category), category, true);
   }
 
   return { value: { files, changeDirectories }, diagnostics };

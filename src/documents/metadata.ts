@@ -208,20 +208,24 @@ export function parseDocumentMetadata(source: DocumentSource): Result<DocumentMe
       field(key, "E_FIELD", "scope разрешён только в задачной Spec.");
     }
 
-    if (key === "supersedes" && !["intent", "research", "adr"].includes(type)) {
+    if (key === "supersedes" && !["intent", "srs", "research", "adr"].includes(type)) {
       field(key, "E_UNSUPPORTED", `supersedes для ${type} не поддерживается.`);
     }
 
     const node = nodeFor(key);
     const values = front.value.fields[key];
-    if (!isSeq(node) || !nonemptyStrings(values) || (key !== "scope" && node.flow)) {
+    if (!isSeq(node) || !nonemptyStrings(values)) {
       field(
         key,
-        "E_FIELD",
+        key === "scope" ? "E_FIELD" : "E_REFERENCE_SYNTAX",
         `${key} должен быть непустым массивом строк${key === "scope" ? "" : " через дефисы"}; исправьте форму.`,
       );
 
       continue;
+    }
+
+    if (key !== "scope" && node.flow) {
+      field(key, "W_FORM", `${key}: используйте список через дефисы.`);
     }
 
     if (key !== "scope") {

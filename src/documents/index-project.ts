@@ -17,7 +17,7 @@ export async function indexProject(config: Config) {
     return { ...source, metadata: metadata.value };
   });
 
-  const index = buildDocumentIndex(documents);
+  const index = buildDocumentIndex(documents, discovered.value.changeDirectories);
   diagnostics.push(...index.diagnostics);
 
   return {

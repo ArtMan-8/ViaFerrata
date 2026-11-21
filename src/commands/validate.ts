@@ -16,6 +16,39 @@ export interface ValidationResult {
   diagnostics: Diagnostic[];
 }
 
+function validateArchiveChanges(index: DocumentIndex<ParsedDocument>): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const [change, bundle] of index.bundles) {
+    const archived = [...bundle.values()].filter((doc) => doc.archived);
+    const execution = bundle.get("plan")?.metadata?.fields.execution;
+    if (
+      archived.length &&
+      (archived.length !== bundle.size || !["completed", "cancelled"].includes(String(execution)))
+    ) {
+      diagnostics.push(
+        diagnostic(
+          archived[0].file,
+          "E_ARCHIVE_STATE",
+          `${change}: перенос неполон или execution не completed/cancelled; сверьте оба расположения.`,
+        ),
+      );
+    }
+
+    const spec = bundle.get("spec");
+    if (!archived.length && execution === "completed" && spec?.body?.deltas?.length) {
+      diagnostics.push(
+        diagnostic(
+          spec.file,
+          "W_SYNC_PENDING",
+          `${change}: завершите сверку SRS и архивирование; расположение не показывает, применена ли дельта.`,
+        ),
+      );
+    }
+  }
+
+  return diagnostics;
+}
+
 export async function validateProject(config: Config): Promise<ValidationResult> {
   const discovered = await discoverDocuments(config);
   const read = await readDocuments(discovered.value.files);
@@ -24,7 +57,21 @@ export async function validateProject(config: Config): Promise<ValidationResult>
   const documents: ParsedDocument[] = [];
   for (const source of read.value) {
     const parsed = parseDocumentMetadata(source);
-    diagnostics.push(...parsed.diagnostics);
+    diagnostics.push(
+      ...parsed.diagnostics.flatMap((item) => {
+        const form = ["E_DATE", "E_FIELD", "E_ENUM", "W_UNKNOWN_FIELD", "W_FORM"].includes(
+          item.code,
+        );
+
+        if (!form) {
+          return [item];
+        }
+
+        return source.archived
+          ? []
+          : [{ ...item, code: "W_FORM" as const, severity: "warning" as const }];
+      }),
+    );
 
     const metadata = parsed.value;
     if (!metadata) {
@@ -40,7 +87,9 @@ export async function validateProject(config: Config): Promise<ValidationResult>
 
     const expectedPath = metadata.identity.change
       ? path.join(
-          config.directories.changes,
+          source.archived
+            ? path.join(config.documentsRoot, "archive", "changes")
+            : config.directories.changes,
           metadata.identity.change,
           `${metadata.identity.type}.md`,
         )
@@ -60,7 +109,39 @@ export async function validateProject(config: Config): Promise<ValidationResult>
     }
 
     const body = parseDocumentBody(source, metadata);
-    diagnostics.push(...body.diagnostics);
+    diagnostics.push(
+      ...body.diagnostics.flatMap((item) => {
+        if (item.code === "E_DRAFT_PLACEHOLDER") {
+          return source.archived ? [] : [item];
+        }
+
+        if (!["E_STRUCTURE", "W_FORM"].includes(item.code)) {
+          return [item];
+        }
+
+        return source.archived
+          ? []
+          : [{ ...item, code: "W_FORM" as const, severity: "warning" as const }];
+      }),
+    );
+
+    if (source.archived && !metadata.identity.change) {
+      const allowed =
+        metadata.identity.type === "research"
+          ? ["completed", "cancelled", "superseded"]
+          : ["cancelled", "superseded"];
+
+      if (!allowed.includes(String(metadata.fields.status))) {
+        diagnostics.push(
+          diagnostic(
+            source.file,
+            "E_ARCHIVE_STATE",
+            "Архив требует допустимого конечного status; восстановите состояние или расположение.",
+          ),
+        );
+      }
+    }
+
     documents.push({ ...source, metadata, body: body.value });
   }
 
@@ -69,6 +150,7 @@ export async function validateProject(config: Config): Promise<ValidationResult>
     ...indexed.diagnostics,
     ...validateBundles(indexed.value, path.relative(config.root, config.directories.changes)),
     ...validateReferences(documents, indexed.value),
+    ...validateArchiveChanges(indexed.value),
   );
 
   return {

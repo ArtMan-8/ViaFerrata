@@ -33,7 +33,7 @@ void test("cross-document checks use local IDs from parsed bodies without changi
   const target = parse(
     source(
       "srs-000007",
-      "# Требования\n\n## Purpose and Boundaries\nГраницы.\n\n## Requirements\n\n### R-1: Требование\nУсловие.\n",
+      "# Требования\n\n## Purpose and Boundaries\nГраницы.\n\n## System Overview\nОбласть.\n\n## Verification\nПроверка.\n\n## Requirements\n\n### R-1: Требование\nУсловие.\n",
     ),
   );
   const index = buildDocumentIndex([origin, target]);

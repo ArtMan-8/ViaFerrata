@@ -19,7 +19,10 @@ void test("metadata and Markdown parsers preserve input and return independent r
   assert.deepEqual(parseDocumentBody(input, metadata.value), first);
   assert.deepEqual(metadata, before);
   assert.deepEqual(parseDocumentMetadata(input), metadata);
-  const unrelated = source("research-000001", "# Другая задача\n");
+  const unrelated = source(
+    "research-000001",
+    "# Другая задача\n\n## Research Question\nВопрос.\n\n## Context and Scope\nКонтекст.\n\n## Method and Sources\nМетод.\n\n## Findings\nРезультат.\n\n## Conclusion\nВывод.\n",
+  );
   const second = parse(unrelated);
   assert.equal(second.body?.locals.size, 0);
   assert.deepEqual(second.body?.references, []);

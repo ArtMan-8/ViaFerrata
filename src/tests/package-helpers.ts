@@ -131,6 +131,7 @@ async function checkPackageContents(json: string) {
     "templates/adr.md",
     "templates/README.md",
     "instructions/workflow.md",
+    "instructions/sync-and-archive.md",
     "CHANGELOG.md",
     "README.md",
     "package.json",

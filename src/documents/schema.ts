@@ -66,7 +66,13 @@ export const requiredHeadings: Record<DocumentType, readonly string[]> = {
   spec: ["Change Boundaries", "Requirements", "Definition of Done"],
   plan: ["Steps"],
   journal: ["Current State", "Significant Events", "Verification and Result"],
-  srs: ["Purpose and Boundaries", "Requirements"],
-  research: [],
-  adr: [],
+  srs: ["Purpose and Boundaries", "System Overview", "Requirements", "Verification"],
+  research: [
+    "Research Question",
+    "Context and Scope",
+    "Method and Sources",
+    "Findings",
+    "Conclusion",
+  ],
+  adr: ["Context and Problem Statement", "Decision Outcome"],
 };

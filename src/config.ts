@@ -60,7 +60,10 @@ export async function loadConfig(rootArgument = process.cwd()): Promise<Config> 
 
   const config = parseConfig(root, raw);
   try {
-    for (const directory of Object.values(config.directories)) {
+    for (const directory of [
+      ...Object.values(config.directories),
+      ...categories.map((category) => path.join(config.documentsRoot, "archive", category)),
+    ]) {
       await checkPath(directory);
     }
   } catch (error) {
