@@ -97,6 +97,12 @@ void test(
         recursive: true,
       },
     );
+    // The installed CLI must index an archived, cancelled bundle and reserve its ID.
+    await edit(target, "viaferrata/changes/change-000001/plan.md", (text) =>
+      text.replace("execution: not_started", "execution: cancelled"),
+    );
+    await fs.mkdir(path.join(target, "viaferrata/archive/changes"), { recursive: true });
+    await fs.rename(generated, path.join(target, "viaferrata/archive/changes/change-000001"));
     const beforeValidation = await snapshot(target);
     const checked = run(["validate"], consumerCwd, executable);
     assert.equal(checked.status, 0, checked.text);
@@ -118,6 +124,8 @@ void test(
     const movedOutput = command(movedExecutable, ["init", target], temp);
     assert(movedOutput.includes(path.join(movedPackage, "instructions/workflow.md")));
     assert.deepEqual(await snapshot(target), after);
+    const next = command(movedExecutable, ["new", "После архивирования"], consumerCwd);
+    assert.match(next, /change-000002/);
     await verifyLaunchModes(temp, tarball);
     const workflow = path.join(movedPackage, "instructions/workflow.md");
     await fs.rename(workflow, workflow + ".unavailable");

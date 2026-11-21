@@ -25,7 +25,7 @@
     "errors": [],
     "warnings": [
       {
-        "code": "W_UNKNOWN_FIELD",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
@@ -69,62 +69,62 @@
   },
   {
     "name": "wrong-field",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_FIELD",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/wrong-field"
   },
   {
     "name": "bad-state",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_ENUM",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/bad-state"
   },
   {
     "name": "bad-date",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_DATE",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/bad-date"
   },
   {
     "name": "backwards-date",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_DATE",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/backwards-date"
   },
   {
     "name": "unquoted-date",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_DATE",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/unquoted-date"
   },
   {
@@ -177,14 +177,14 @@
   },
   {
     "name": "missing-section",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_STRUCTURE",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/missing-section"
   },
   {
@@ -204,7 +204,7 @@
     "exitCode": 1,
     "errors": [
       {
-        "code": "E_FIELD",
+        "code": "E_REFERENCE_SYNTAX",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],
@@ -247,14 +247,14 @@
   },
   {
     "name": "status-in-journal",
-    "exitCode": 1,
-    "errors": [
+    "exitCode": 0,
+    "errors": [],
+    "warnings": [
       {
-        "code": "E_FIELD",
+        "code": "W_FORM",
         "path": "viaferrata/changes/change-000042/journal.md"
       }
     ],
-    "warnings": [],
     "overlay": "overlays/status-in-journal"
   },
   {

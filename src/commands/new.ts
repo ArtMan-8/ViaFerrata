@@ -53,29 +53,37 @@ export async function createChange(
   }
 
   let highest = 0;
+  for (const change of inspected.index.bundles.keys()) {
+    highest = Math.max(highest, Number(change.slice(7)));
+  }
+
   for (const document of inspected.documents) {
     if (document.metadata?.identity?.change) {
       highest = Math.max(highest, Number(document.metadata?.identity.change.slice(7)));
     }
   }
 
-  try {
-    for (const name of await io.readdir(config.directories.changes)) {
-      if (/^change-\d{6}$/.test(name)) {
-        highest = Math.max(highest, Number(name.slice(7)));
+  for (const directory of [
+    config.directories.changes,
+    path.join(config.documentsRoot, "archive", "changes"),
+  ]) {
+    try {
+      for (const name of await io.readdir(directory)) {
+        if (/^change-\d{6}$/.test(name)) {
+          highest = Math.max(highest, Number(name.slice(7)));
+        }
       }
-    }
-  } catch (error) {
-    if (!isFileError(error)) {
-      throw error;
-    }
-
-    if (errorCode(error) !== "ENOENT") {
-      throw new CommandError(
-        "E_IO",
-        `${errorMessage(error)}; проверьте доступ к changes.`,
-        config.directories.changes,
-      );
+    } catch (error) {
+      if (!isFileError(error)) {
+        throw error;
+      }
+      if (errorCode(error) !== "ENOENT") {
+        throw new CommandError(
+          "E_IO",
+          `${errorMessage(error)}; проверьте доступ к changes.`,
+          directory,
+        );
+      }
     }
   }
 
