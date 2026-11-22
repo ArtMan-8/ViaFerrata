@@ -1,5 +1,7 @@
 import { constants } from "node:os";
 
+import type { Rule, RuleId } from "./rules.ts";
+
 export type DiagnosticCode =
   | "E_UNSUPPORTED"
   | "E_IO"
@@ -12,9 +14,6 @@ export type DiagnosticCode =
   | "E_YAML"
   | "E_ID"
   | "E_FIELD"
-  | "W_UNKNOWN_FIELD"
-  | "E_DATE"
-  | "E_ENUM"
   | "W_FORM"
   | "W_ARCHIVE_REFERENCE"
   | "W_HISTORY"
@@ -29,7 +28,10 @@ export type DiagnosticCode =
   | "E_REFERENCE_SYNTAX"
   | "E_REFERENCE_TARGET";
 
+export type RuleGroup = Record<string, { id: string; code: DiagnosticCode }>;
+
 export interface Diagnostic {
+  ruleId?: RuleId;
   file: string;
   code: DiagnosticCode;
   message: string;
@@ -57,29 +59,35 @@ export function errorMessage(error: unknown): string {
 }
 
 export class CommandError extends Error {
-  code: DiagnosticCode;
+  readonly reason: DiagnosticCode | Rule;
   file: string;
 
+  get code(): DiagnosticCode {
+    return typeof this.reason === "string" ? this.reason : this.reason.code;
+  }
+
   constructor(
-    code: DiagnosticCode,
+    reason: DiagnosticCode | Rule,
     message: string,
     file = "viaferrata.toml",
     options?: ErrorOptions,
   ) {
     super(message, options);
-    this.code = code;
+    this.reason = reason;
     this.file = file;
   }
 }
 
 export function diagnostic(
   file: string,
-  code: DiagnosticCode,
+  reason: DiagnosticCode | Rule,
   message: string,
   line = 1,
   column = 1,
 ): Diagnostic {
+  const code = typeof reason === "string" ? reason : reason.code;
   return {
+    ...(typeof reason === "string" ? {} : { ruleId: reason.id }),
     file,
     code,
     message,
@@ -121,7 +129,7 @@ export function sortDiagnostics(items: Diagnostic[]) {
 }
 
 export function formatDiagnostic(d: Diagnostic) {
-  return `${d.file}:${d.line}:${d.column} ${d.code}: ${d.message}`;
+  return `${d.file}:${d.line}:${d.column} ${d.code}:${d.ruleId ? ` [${d.ruleId}]` : ""} ${d.message}`;
 }
 
 const fileErrorCodes = new Set(Object.keys(constants.errno));

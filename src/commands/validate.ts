@@ -9,6 +9,9 @@ import { parseDocumentBody } from "../documents/markdown.ts";
 import { parseDocumentMetadata } from "../documents/metadata.ts";
 import { validateReferences } from "../documents/references.ts";
 import type { ParsedDocument, DocumentIndex } from "../documents/types.ts";
+import { archiveRules } from "../rules/archive.ts";
+import { coverageRules } from "../rules/coverage.ts";
+import { identityRules } from "../rules/identity.ts";
 
 export interface ValidationResult {
   documents: ParsedDocument[];
@@ -16,30 +19,42 @@ export interface ValidationResult {
   diagnostics: Diagnostic[];
 }
 
-function validateArchiveChanges(index: DocumentIndex<ParsedDocument>): Diagnostic[] {
+function validateArchiveChanges(
+  documents: ParsedDocument[],
+  index: DocumentIndex<ParsedDocument>,
+): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
+  const filesByChange = Map.groupBy(documents, (doc) => doc.metadata?.identity.change);
   for (const [change, bundle] of index.bundles) {
-    const archived = [...bundle.values()].filter((doc) => doc.archived);
+    const files = filesByChange.get(change) ?? [];
+    const archived = files.find((doc) => doc.archived);
     const execution = bundle.get("plan")?.metadata?.fields.execution;
-    if (
-      archived.length &&
-      (archived.length !== bundle.size || !["completed", "cancelled"].includes(String(execution)))
-    ) {
+    if (archived && files.some((doc) => !doc.archived)) {
       diagnostics.push(
         diagnostic(
-          archived[0].file,
-          "E_ARCHIVE_STATE",
-          `${change}: перенос неполон или execution не completed/cancelled; сверьте оба расположения.`,
+          archived.file,
+          archiveRules.archiveChangeLocation,
+          `${change}: документы комплекта находятся в двух расположениях; сверьте перенос.`,
+        ),
+      );
+    }
+
+    if (archived && !["completed", "cancelled"].includes(String(execution))) {
+      diagnostics.push(
+        diagnostic(
+          bundle.get("plan")?.file ?? archived.file,
+          archiveRules.archiveChangeExecution,
+          `${change}: в архиве у Plan требуется execution completed или cancelled; проверьте состояние задачи.`,
         ),
       );
     }
 
     const spec = bundle.get("spec");
-    if (!archived.length && execution === "completed" && spec?.body?.deltas?.length) {
+    if (!archived && execution === "completed" && spec?.body?.deltas?.length) {
       diagnostics.push(
         diagnostic(
           spec.file,
-          "W_SYNC_PENDING",
+          archiveRules.pendingSynchronization,
           `${change}: завершите сверку SRS и архивирование; расположение не показывает, применена ли дельта.`,
         ),
       );
@@ -78,7 +93,7 @@ function validatePlanCoverage(index: DocumentIndex<ParsedDocument>): Diagnostic[
         diagnostics.push(
           diagnostic(
             plan.file,
-            "E_PLAN_COVERAGE",
+            coverageRules.planRequirementCoverage,
             `Нет шага Plan для ${id}; добавьте Covers на требование или покрывающий его AC этой задачи.`,
           ),
         );
@@ -89,6 +104,12 @@ function validatePlanCoverage(index: DocumentIndex<ParsedDocument>): Diagnostic[
   return diagnostics;
 }
 
+function applicableDiagnostics(items: Diagnostic[], archived = false): Diagnostic[] {
+  return archived
+    ? items.filter((item) => item.code !== "W_FORM" && item.code !== "E_DRAFT_PLACEHOLDER")
+    : items;
+}
+
 export async function validateProject(config: Config): Promise<ValidationResult> {
   const discovered = await discoverDocuments(config);
   const read = await readDocuments(discovered.value.files);
@@ -97,21 +118,7 @@ export async function validateProject(config: Config): Promise<ValidationResult>
   const documents: ParsedDocument[] = [];
   for (const source of read.value) {
     const parsed = parseDocumentMetadata(source);
-    diagnostics.push(
-      ...parsed.diagnostics.flatMap((item) => {
-        const form = ["E_DATE", "E_FIELD", "E_ENUM", "W_UNKNOWN_FIELD", "W_FORM"].includes(
-          item.code,
-        );
-
-        if (!form) {
-          return [item];
-        }
-
-        return source.archived
-          ? []
-          : [{ ...item, code: "W_FORM" as const, severity: "warning" as const }];
-      }),
-    );
+    diagnostics.push(...applicableDiagnostics(parsed.diagnostics, source.archived));
 
     const metadata = parsed.value;
     if (!metadata) {
@@ -142,28 +149,14 @@ export async function validateProject(config: Config): Promise<ValidationResult>
       diagnostics.push(
         diagnostic(
           source.file,
-          "E_LOCATION",
+          identityRules.documentLocation,
           "Путь не соответствует ID/типу; перенесите документ в соответствующий каталог.",
         ),
       );
     }
 
     const body = parseDocumentBody(source, metadata);
-    diagnostics.push(
-      ...body.diagnostics.flatMap((item) => {
-        if (item.code === "E_DRAFT_PLACEHOLDER") {
-          return source.archived ? [] : [item];
-        }
-
-        if (!["E_STRUCTURE", "W_FORM"].includes(item.code)) {
-          return [item];
-        }
-
-        return source.archived
-          ? []
-          : [{ ...item, code: "W_FORM" as const, severity: "warning" as const }];
-      }),
-    );
+    diagnostics.push(...applicableDiagnostics(body.diagnostics, source.archived));
 
     if (source.archived && !metadata.identity.change) {
       const allowed =
@@ -175,7 +168,7 @@ export async function validateProject(config: Config): Promise<ValidationResult>
         diagnostics.push(
           diagnostic(
             source.file,
-            "E_ARCHIVE_STATE",
+            archiveRules.archiveDocumentState,
             "Архив требует допустимого конечного status; восстановите состояние или расположение.",
           ),
         );
@@ -190,8 +183,10 @@ export async function validateProject(config: Config): Promise<ValidationResult>
     ...indexed.diagnostics,
     ...validateBundles(indexed.value, path.relative(config.root, config.directories.changes)),
     ...validateReferences(documents, indexed.value),
-    ...validateArchiveChanges(indexed.value),
-    ...(config.planCoverage ? validatePlanCoverage(indexed.value) : []),
+    ...validateArchiveChanges(documents, indexed.value),
+    ...(config.enabledRules.has(coverageRules.planRequirementCoverage.id)
+      ? validatePlanCoverage(indexed.value)
+      : []),
   );
 
   return {

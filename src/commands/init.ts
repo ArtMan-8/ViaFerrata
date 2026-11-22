@@ -306,7 +306,7 @@ export async function initProject(
   } catch (error) {
     const code =
       error instanceof CommandError
-        ? error.code
+        ? error.reason
         : errorCode(error) === "EEXIST"
           ? "E_EXISTS"
           : isFileError(error)

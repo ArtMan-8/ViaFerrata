@@ -1,5 +1,7 @@
 import type { Heading } from "mdast";
 
+import { identityRules } from "../rules/identity.ts";
+import { structureRules } from "../rules/structure.ts";
 import { parseDeltas } from "./deltas.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
 import {
@@ -50,13 +52,16 @@ export function parseDocumentBody(
   const headings = events.filter((n) => n.type === "heading");
   const h1 = headings.filter((n) => n.depth === 1);
   if (h1.length !== 1 || !plain(h1[0]).trim()) {
-    diagnostics.add("E_STRUCTURE", "Требуется один непустой H1; исправьте заголовок.");
+    diagnostics.add(
+      structureRules.documentTitle,
+      "Требуется один непустой H1; исправьте заголовок.",
+    );
   }
 
   for (const name of requiredHeadings[documentType]) {
     if (headings.filter((n) => n.depth === 2 && plain(n) === name).length !== 1) {
       diagnostics.add(
-        "E_STRUCTURE",
+        structureRules.requiredSections,
         `Требуется один H2 ${name}; добавьте раздел или удалите дубликат.`,
       );
     }
@@ -82,7 +87,10 @@ export function parseDocumentBody(
             node.position.start.offset < end,
         ).length !== 1
       ) {
-        diagnostics.add("E_STRUCTURE", `Требуется один H3 ${name} внутри Decision Outcome.`);
+        diagnostics.add(
+          structureRules.requiredSections,
+          `Требуется один H3 ${name} внутри Decision Outcome.`,
+        );
       }
     }
   }
@@ -100,7 +108,7 @@ export function parseDocumentBody(
   function declare(id: string, node: LocatedNode, group: LocalType) {
     if (locals.has(id)) {
       diagnostics.add(
-        "E_DUPLICATE_LOCAL_ID",
+        identityRules.uniqueLocalId,
         `Повтор ${id}; сохраните уникальные локальные ID.`,
         node.position.start.offset,
       );
@@ -110,7 +118,7 @@ export function parseDocumentBody(
 
     if (!localTypes[documentType].includes(group) || expectedSection[group] !== section) {
       diagnostics.add(
-        "E_STRUCTURE",
+        structureRules.localDeclarationLocation,
         `${id} недопустим в этом типе/разделе; перенесите объявление.`,
         node.position.start.offset,
       );
@@ -145,7 +153,7 @@ export function parseDocumentBody(
       const m = /^(AC|R|S|DOD|W|P|V)-([1-9]\d*):\s+\S/.exec(title);
       if (!m || node.depth !== (m[1] === "V" ? 4 : 3) || m[1] === "P") {
         diagnostics.add(
-          "E_STRUCTURE",
+          structureRules.localHeading,
           "Некорректное локальное объявление; исправьте ID, уровень или название.",
           offset,
         );
@@ -158,7 +166,11 @@ export function parseDocumentBody(
       const id = `${group}-${m[2]}`;
       declare(id, node, group);
       if (group === "V" && subsection !== "Verification") {
-        diagnostics.add("E_STRUCTURE", "V должен находиться в подразделе Verification.", offset);
+        diagnostics.add(
+          structureRules.localDeclarationLocation,
+          "V должен находиться в подразделе Verification.",
+          offset,
+        );
       }
 
       if (group === "AC") {
@@ -210,7 +222,7 @@ export function parseDocumentBody(
         const m = /^- \[[ x]\] (P-[1-9]\d*):\s+\S/.exec(firstLine);
         if (!m) {
           diagnostics.add(
-            "E_STRUCTURE",
+            structureRules.stepDeclaration,
             "Некорректный P-ID или пустой шаг; исправьте объявление.",
             offset,
           );
@@ -218,7 +230,7 @@ export function parseDocumentBody(
           declare(m[1], node, "P");
           if (!wave) {
             diagnostics.add(
-              "E_STRUCTURE",
+              structureRules.stepWave,
               "Шаг должен находиться в волне W; добавьте волну.",
               offset,
             );
@@ -232,7 +244,7 @@ export function parseDocumentBody(
         }
       } else if (/^(?:[-+*]|\d+[.)])\s+(?:\[[^\]]*\]\s+)?P-/.test(firstLine)) {
         diagnostics.add(
-          "E_STRUCTURE",
+          structureRules.stepDeclaration,
           "Шаг объявляется как - [ ] P-N: текст или - [x] P-N: текст.",
           offset,
         );
@@ -251,7 +263,7 @@ export function parseDocumentBody(
     const rawText = source.slice(offset, node.position.end.offset);
     if (node.value.includes("TODO(VF)")) {
       diagnostics.add(
-        "E_DRAFT_PLACEHOLDER",
+        structureRules.filledDocument,
         "Осталась заготовка TODO(VF); заполните или удалите неприменимый блок.",
         offset,
       );
@@ -274,7 +286,7 @@ export function parseDocumentBody(
 
   if (documentType === "intent") {
     if (!ac.length) {
-      diagnostics.add("E_STRUCTURE", "Требуется хотя бы один AC с Verification.");
+      diagnostics.add(structureRules.intentCriteria, "Требуется хотя бы один AC с Verification.");
     }
 
     for (const item of ac) {
@@ -292,9 +304,10 @@ export function parseDocumentBody(
             source.slice(n.position.start.offset, n.position.end.offset),
           ),
       );
+
       if (!hasVerification) {
         diagnostics.add(
-          "E_STRUCTURE",
+          structureRules.criterionVerification,
           `${item.id} требует непустой Verification; укажите способ проверки.`,
           item.node.position.start.offset,
         );
@@ -303,23 +316,33 @@ export function parseDocumentBody(
   }
 
   if (documentType === "srs" && ![...locals].some((id) => id.startsWith("R-"))) {
-    diagnostics.add("E_STRUCTURE", "SRS требует хотя бы одно R; добавьте требование.");
+    diagnostics.add(
+      structureRules.srsRequirements,
+      "SRS требует хотя бы одно R; добавьте требование.",
+    );
   }
 
   if (documentType === "plan") {
     if (!waves.length) {
-      diagnostics.add("E_STRUCTURE", "Plan требует хотя бы одну волну W.");
+      diagnostics.add(structureRules.planWaves, "Plan требует хотя бы одну волну W.");
     }
 
     for (const w of waves) {
+      if (!w.count) {
+        diagnostics.add(
+          structureRules.waveSteps,
+          "Волна должна содержать хотя бы один шаг P.",
+          w.node.position.start.offset,
+        );
+      }
+
       if (
-        !w.count ||
         w.execution.length !== 1 ||
         !["Execution: sequential", "Execution: parallel"].includes(w.execution[0])
       ) {
         diagnostics.add(
-          "E_STRUCTURE",
-          "Каждая волна требует Execution: sequential/parallel и хотя бы один шаг.",
+          structureRules.waveExecution,
+          "В волне требуется одно объявление Execution: sequential или Execution: parallel.",
           w.node.position.start.offset,
         );
       }

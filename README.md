@@ -64,6 +64,7 @@ CLI выполняет базовые структурные проверки. �
 
 ## Документация
 
+- [Каталог встроенных правил и диагностик](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/viaferrata/specs/built-in-checks.md#system-overview).
 - [Процесс работы с агентом](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/instructions/workflow.md).
 - [Шаблоны, метаданные и связи документов](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/templates/README.md).
 - [Глоссарий в репозитории](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/docs/GLOSSARY.md).

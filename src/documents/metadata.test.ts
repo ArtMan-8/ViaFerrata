@@ -14,8 +14,8 @@ void test("identity extraction accepts incomplete fields while full metadata val
   const metadata = parseDocumentMetadata(input);
   assert.equal(metadata.value?.identity.id, identity.value?.identity.id);
   assert.deepEqual(
-    metadata.diagnostics.map((d) => d.code),
-    ["E_DATE", "E_DATE", "E_ENUM"],
+    metadata.diagnostics.map((d) => d.ruleId),
+    ["calendar-date", "calendar-date", "state-fields"],
   );
   assert.deepEqual(readDocumentIdentity(input), identity);
   for (const raw of ["# Нет YAML", "---\nid: invalid\n---\n# Ошибка"]) {
