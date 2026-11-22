@@ -99,7 +99,7 @@ for (const [name, config, expected] of [
   ["absolute root", 'profile = "lite"\ndocuments_root = "/tmp"', "E_CONFIG"],
   ["temporary root", 'profile = "lite"\ndocuments_root = ".viaferrata"', "E_CONFIG"],
   ["protected paths", 'profile = "lite"\nprotected_paths = ["vendor/**"]', "E_UNSUPPORTED"],
-  ["required checks", 'profile = "lite"\nrequired_checks = ["unit"]', "E_UNSUPPORTED"],
+  ["required checks", 'profile = "lite"\nrequired_checks = ["unit"]', "E_CONFIG"],
 ]) {
   void test(`config: ${name} stops new before writing`, async (t) => {
     const root = await project(t, false);

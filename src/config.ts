@@ -10,7 +10,10 @@ export const categories = ["changes", "specs", "research", "adr"] as const;
 
 export type Category = (typeof categories)[number];
 
+export const planCoverageRule = "plan-requirement-coverage";
+
 export interface Config {
+  planCoverage: boolean;
   root: string;
   documentsRoot: string;
   directories: Record<Category, string>;
@@ -126,13 +129,26 @@ export function parseConfig(root: string, raw: string): Config {
     );
   }
 
+  let planCoverage = config.profile === "strict";
   for (const key of ["protected_paths", "required_checks"]) {
     const value = config[key] ?? [];
     if (!Array.isArray(value) || value.some((v) => typeof v !== "string" || !v.trim())) {
       throw new CommandError("E_CONFIG", `${key} должен быть массивом непустых строк.`, file);
     }
 
-    if (value.length) {
+    if (key === "required_checks") {
+      for (const rule of value) {
+        if (rule !== planCoverageRule) {
+          throw new CommandError(
+            "E_CONFIG",
+            `Неизвестная встроенная проверка: ${rule}. Допустима ${planCoverageRule}.`,
+            file,
+          );
+        }
+
+        planCoverage = true;
+      }
+    } else if (value.length) {
       throw new CommandError(
         "E_UNSUPPORTED",
         `${key} ещё не поддерживается этим срезом; используйте реализацию нужного контроля, не отключайте обязательства ради проверки.`,
@@ -146,5 +162,5 @@ export function parseConfig(root: string, raw: string): Config {
     categories.map((c) => [c, path.join(documentsRoot, c)]),
   ) as Record<Category, string>;
 
-  return { root, documentsRoot, directories, profile: config.profile };
+  return { root, documentsRoot, directories, planCoverage, profile: config.profile };
 }

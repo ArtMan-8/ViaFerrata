@@ -139,7 +139,7 @@ for (const [body, code, args] of [
   ["profile = [\n", "E_CONFIG", ["init"]],
   ['profile = "lite"\nprofile = "strict"\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\nunknown = true\n', "E_CONFIG", ["init"]],
-  ['profile = "lite"\nrequired_checks = ["npm test"]\n', "E_UNSUPPORTED", ["init"]],
+  ['profile = "lite"\nrequired_checks = ["npm test"]\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\nprotected_paths = ["src/**"]\n', "E_UNSUPPORTED", ["init"]],
   ['profile = "lite"\ndocuments_root = "../outside"\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\ndocuments_root = "  "\n', "E_CONFIG", ["init"]],

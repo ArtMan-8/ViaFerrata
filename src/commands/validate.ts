@@ -49,6 +49,46 @@ function validateArchiveChanges(index: DocumentIndex<ParsedDocument>): Diagnosti
   return diagnostics;
 }
 
+function validatePlanCoverage(index: DocumentIndex<ParsedDocument>): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const [change, bundle] of index.bundles) {
+    const plan = bundle.get("plan"),
+      spec = bundle.get("spec"),
+      intent = bundle.get("intent");
+    if (!plan?.body || !spec?.body || plan.archived || spec.archived) {
+      continue;
+    }
+
+    const targets = new Set<string>();
+    for (const edges of plan.body.covers?.values() ?? []) {
+      for (const target of edges) {
+        targets.add(target);
+        const prefix = change + "/intent/";
+        if (target.startsWith(prefix)) {
+          for (const requirement of intent?.body?.covers?.get(target.slice(prefix.length)) ?? []) {
+            targets.add(requirement);
+          }
+        }
+      }
+    }
+
+    for (const local of spec.body.locals) {
+      const id = change + "/spec/" + local;
+      if (local.startsWith("R-") && !targets.has(id)) {
+        diagnostics.push(
+          diagnostic(
+            plan.file,
+            "E_PLAN_COVERAGE",
+            `Нет шага Plan для ${id}; добавьте Covers на требование или покрывающий его AC этой задачи.`,
+          ),
+        );
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
 export async function validateProject(config: Config): Promise<ValidationResult> {
   const discovered = await discoverDocuments(config);
   const read = await readDocuments(discovered.value.files);
@@ -151,6 +191,7 @@ export async function validateProject(config: Config): Promise<ValidationResult>
     ...validateBundles(indexed.value, path.relative(config.root, config.directories.changes)),
     ...validateReferences(documents, indexed.value),
     ...validateArchiveChanges(indexed.value),
+    ...(config.planCoverage ? validatePlanCoverage(indexed.value) : []),
   );
 
   return {

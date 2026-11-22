@@ -90,6 +90,11 @@ export function parseDocumentBody(
   let section = "";
   let subsection = "";
   let wave: Wave | null = null;
+  const covers = new Map<string, Set<string>>();
+  const coverFields: { owner: string; start: number; end: number }[] = [];
+  let currentAC: string | null = null;
+  let stepEnd = -1;
+  let currentStep: string | null = null;
   const waves: Wave[] = [];
   const ac: { node: Heading & { position: SourcePosition }; id: string }[] = [];
   function declare(id: string, node: LocatedNode, group: LocalType) {
@@ -116,6 +121,11 @@ export function parseDocumentBody(
     const offset = node.position.start.offset;
     if (node.type === "heading") {
       const title = plain(node);
+      if (node.depth <= 3) {
+        currentAC = null;
+        currentStep = null;
+      }
+
       if (node.depth === 2) {
         section = title;
         subsection = "";
@@ -153,6 +163,9 @@ export function parseDocumentBody(
 
       if (group === "AC") {
         ac.push({ node, id });
+        if (section === "Acceptance Criteria") {
+          currentAC = id;
+        }
       }
 
       if (group === "W") {
@@ -163,6 +176,36 @@ export function parseDocumentBody(
 
     if (node.type === "listItem") {
       const firstLine = source.slice(offset, node.position.end.offset).split(/\r?\n/)[0];
+      if (/^- Covers:\s*$/.test(firstLine)) {
+        const owner =
+          documentType === "intent"
+            ? currentAC
+            : currentStep && offset < stepEnd
+              ? currentStep
+              : null;
+
+        if (owner) {
+          const parent = events
+            .filter(
+              (n) =>
+                n.type === "listItem" &&
+                n.position.start.offset < offset &&
+                n.position.end.offset >= node.position.end.offset,
+            )
+            .at(-1);
+
+          if (
+            documentType === "intent"
+              ? !parent
+              : parent &&
+                parent.position.end.offset === stepEnd &&
+                /^- \[[ x]\] P-/.test(source.slice(parent.position.start.offset))
+          ) {
+            coverFields.push({ owner, start: offset, end: node.position.end.offset });
+          }
+        }
+      }
+
       if (/^- \[[ x]\] P-/.test(firstLine)) {
         const m = /^- \[[ x]\] (P-[1-9]\d*):\s+\S/.exec(firstLine);
         if (!m) {
@@ -181,6 +224,10 @@ export function parseDocumentBody(
             );
           } else {
             wave.count++;
+            if (documentType === "plan" && section === "Steps") {
+              currentStep = m[1];
+              stepEnd = node.position.end.offset;
+            }
           }
         }
       } else if (/^(?:[-+*]|\d+[.)])\s+(?:\[[^\]]*\]\s+)?P-/.test(firstLine)) {
@@ -279,13 +326,24 @@ export function parseDocumentBody(
     }
   }
 
+  for (const field of coverFields) {
+    const targets = covers.get(field.owner) ?? new Set<string>();
+    for (const ref of references) {
+      if (ref.offset > field.start && ref.offset < field.end) {
+        targets.add(ref.value);
+      }
+    }
+
+    covers.set(field.owner, targets);
+  }
+
   const deltas =
     documentType === "spec"
       ? parseDeltas(input, metadata.bodyOffset)
       : { value: [], diagnostics: [] };
 
   return {
-    value: { locals, references, deltas: deltas.value },
+    value: { locals, references, covers, deltas: deltas.value },
     diagnostics: [...diagnostics.items, ...deltas.diagnostics],
   };
 }

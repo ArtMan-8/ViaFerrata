@@ -378,3 +378,79 @@ void test("symlinked documents fail without following external targets", async (
   assert.match(result.text, /E_UNSUPPORTED/);
   assert.match(result.text, /Неполный охват/);
 });
+
+void test("Plan coverage follows direct and same-change AC Covers edges under the selected profile", async (t) => {
+  const root = await project(t);
+  const requirement = "change-000042/spec/R-1";
+  await edit(root, specPath, (s) =>
+    s.replace("## Requirements", "## Requirements\n\n### R-1: Колонки"),
+  );
+  const validate = () => run(["validate"], root);
+  assert.equal(validate().status, 0);
+  await write(
+    root,
+    "viaferrata.toml",
+    'profile="lite"\nrequired_checks=["plan-requirement-coverage"]',
+  );
+  let result = validate();
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /E_PLAN_COVERAGE.*R-1/);
+  await write(root, "viaferrata.toml", 'profile="strict"\nrequired_checks=[]');
+  await edit(root, planPath, (s) => s + "\nУпоминание [" + requirement + "].\n");
+  assert.equal(validate().status, 1);
+  await edit(root, intentPath, (s) => s.replace("[srs-000007/R-1]", "[" + requirement + "]"));
+  result = validate();
+  assert.equal(result.status, 0, result.text);
+  await edit(root, planPath, (s) =>
+    s.replace("[change-000042/intent/AC-1]", "[" + requirement + "]"),
+  );
+  assert.equal(validate().status, 0);
+  await edit(root, planPath, (s) => s.replace("  - Covers:", "  - Verification:"));
+  assert.equal(validate().status, 1);
+  const vibe = await project(t, false);
+  await write(vibe, "viaferrata.toml", 'profile="strict"');
+  assert.equal(run(["validate"], vibe).status, 0);
+});
+
+void test("coverage uses declared Covers in the same working bundle and preserves core validation", async (t) => {
+  const root = await project(t);
+  await write(root, "viaferrata.toml", 'profile="strict"');
+  await edit(root, specPath, (s) =>
+    s.replace("## Requirements", "## Requirements\n\n### R-1: Требование"),
+  );
+  await edit(root, intentPath, (s) => s.replace("[srs-000007/R-1]", "`[change-000042/spec/R-1]`"));
+  const base = path.join(root, "viaferrata/changes/change-000042");
+  const other = path.join(root, "viaferrata/changes/change-000043");
+  await fs.cp(base, other, { recursive: true });
+  for (const name of ["intent", "spec", "plan"]) {
+    await edit(root, "viaferrata/changes/change-000043/" + name + ".md", (s) =>
+      s.replaceAll("change-000042", "change-000043"),
+    );
+  }
+  await edit(root, "viaferrata/changes/change-000043/intent.md", (s) =>
+    s.replace("`[change-000043/spec/R-1]`", "[change-000042/spec/R-1]"),
+  );
+  await edit(root, planPath, (s) =>
+    s.replace("/intent/AC-1]", "/intent/AC-1]\n    - [change-000043/intent/AC-1]"),
+  );
+  let result = run(["validate"], root);
+  assert.equal(result.status, 1);
+  assert.match(result.text, /E_PLAN_COVERAGE:.*change-000042\/spec\/R-1/);
+  await edit(root, planPath, (s) =>
+    s.replace("[change-000043/intent/AC-1]", "[change-000042/spec/R-1]"),
+  );
+  await edit(root, "viaferrata/changes/change-000043/plan.md", (s) =>
+    s.replace("not_started", "cancelled"),
+  );
+  await fs.mkdir(path.join(root, "viaferrata/archive/changes"), { recursive: true });
+  await fs.rename(other, path.join(root, "viaferrata/archive/changes/change-000043"));
+  result = run(["validate"], root);
+  assert.equal(result.status, 0, result.text);
+  await write(root, "viaferrata.toml", 'profile="lite"\nrequired_checks=[]');
+  await edit(root, planPath, (s) =>
+    s.replace("[change-000042/spec/R-1]", "[change-000042/spec/R-99]"),
+  );
+  result = run(["validate"], root);
+  assert.match(result.text, /E_REFERENCE_TARGET/);
+  assert.equal(result.status, 1);
+});
