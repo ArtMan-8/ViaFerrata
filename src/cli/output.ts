@@ -5,6 +5,7 @@ import type { ValidationResult } from "../commands/validate.ts";
 import type { Config } from "../config.ts";
 import { exitCode } from "../diagnostics.ts";
 import { instructionFiles } from "../resources.ts";
+import { coverageRules } from "../rules/coverage.ts";
 
 export const help = `ViaFerrata — подключение проекта, создание change и структурная проверка документов
 
@@ -26,7 +27,7 @@ validate проверяет метаданные, ID, обязательные �
 Руководство форм: ${instructionFiles.templates}
 `;
 export const limitations =
-  "Не проверены: смысл и матрица отношений, покрытие, scope/protected_paths по diff, согласование, evidence и завершение. Полная поддержка lite/strict отсутствует.";
+  "Не проверены: смысл и полная матрица отношений, покрытие тестами, scope/protected_paths по diff, согласование, evidence и завершение. Полная поддержка lite/strict отсутствует.";
 
 export function initReport(result: InitResult): string {
   const { config, files, instructions } = result;
@@ -70,6 +71,12 @@ export function validationReport(config: Config, result: ValidationResult): stri
 
   if (!result.documents.length) {
     lines.push("Документов нет; это не подтверждает готовность проекта.");
+  }
+
+  if (config.enabledRules.has(coverageRules.planRequirementCoverage.id)) {
+    lines.push(
+      `Включено правило ${coverageRules.planRequirementCoverage.id}: связи шагов Plan с требованиями рабочих deep-комплектов.`,
+    );
   }
 
   lines.push(limitations);

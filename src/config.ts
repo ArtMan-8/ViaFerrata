@@ -5,12 +5,15 @@ import { parse, TomlError } from "smol-toml";
 
 import { CommandError, errorCode, errorMessage, isFileError } from "./diagnostics.ts";
 import { checkPath } from "./filesystem.ts";
+import { coreRules, strictRules, type Rule, type RuleId } from "./rules.ts";
+import { configRules } from "./rules/config.ts";
 
 export const categories = ["changes", "specs", "research", "adr"] as const;
 
 export type Category = (typeof categories)[number];
 
 export interface Config {
+  enabledRules: ReadonlySet<RuleId>;
   root: string;
   documentsRoot: string;
   directories: Record<Category, string>;
@@ -77,6 +80,79 @@ export async function loadConfig(rootArgument = process.cwd()): Promise<Config> 
   return config;
 }
 
+const configFields = {
+  profile(value: unknown, file: string): Config["profile"] {
+    if (value !== "lite" && value !== "strict") {
+      throw new CommandError(
+        configRules.supportedProfile,
+        "profile должен быть lite или strict.",
+        file,
+      );
+    }
+
+    return value;
+  },
+  documents_root(value: unknown, file: string): string {
+    const relative = value ?? "viaferrata";
+    if (
+      typeof relative !== "string" ||
+      !relative.trim() ||
+      path.isAbsolute(relative) ||
+      // Control characters are forbidden in a documents_root path.
+      // oxlint-disable-next-line no-control-regex
+      /[\\*?[\]{}\x00-\x1f]/.test(relative) ||
+      relative
+        .split("/")
+        .some((p) => [".", "..", ".git", ".viaferrata", "node_modules"].includes(p))
+    ) {
+      throw new CommandError(
+        configRules.validDocumentsRoot,
+        "documents_root должен быть непустым относительным путём, не состоящим только из пробелов, без glob, служебных каталогов и . или ..; исправьте путь.",
+        file,
+      );
+    }
+
+    return relative;
+  },
+  protected_paths(value: unknown, file: string) {
+    const paths = stringList(value, "protected_paths", file, configRules.validProtectedPaths);
+    if (paths.length) {
+      throw new CommandError(
+        configRules.supportedProtectedPaths,
+        "protected_paths ещё не поддерживается этим срезом; используйте реализацию нужного контроля, не отключайте обязательства ради проверки.",
+        file,
+      );
+    }
+  },
+  required_checks(value: unknown, file: string) {
+    return stringList(value, "required_checks", file, configRules.validRequiredChecks).map((id) => {
+      const rule = strictRules.find((candidate) => candidate.id === id);
+      if (!rule) {
+        throw new CommandError(
+          configRules.selectableCheck,
+          `Неизвестная встроенная проверка: ${id}. Допустимы: ${strictRules.map((candidate) => candidate.id).join(", ")}.`,
+          file,
+        );
+      }
+      return rule;
+    });
+  },
+};
+
+function stringList(value: unknown, key: string, file: string, rule: Rule): string[] {
+  const list = value ?? [];
+  if (
+    !Array.isArray(list) ||
+    !list.every(
+      (item: unknown): item is string => typeof item === "string" && item.trim().length > 0,
+    )
+  ) {
+    throw new CommandError(rule, `${key} должен быть массивом непустых строк.`, file);
+  }
+
+  return list;
+}
+
 export function parseConfig(root: string, raw: string): Config {
   const file = path.join(root, "viaferrata.toml");
   let config: Record<string, unknown>;
@@ -88,63 +164,35 @@ export function parseConfig(root: string, raw: string): Config {
     }
 
     throw new CommandError(
-      "E_CONFIG",
+      configRules.validToml,
       `Некорректный TOML: ${errorMessage(error)}; исправьте конфигурацию.`,
       file,
     );
   }
 
-  const allowed = new Set(["profile", "documents_root", "protected_paths", "required_checks"]);
   for (const key of Object.keys(config)) {
-    if (!allowed.has(key)) {
+    if (!Object.hasOwn(configFields, key)) {
       throw new CommandError(
-        "E_CONFIG",
+        configRules.knownConfigKeys,
         `Неизвестный ключ ${key}; удалите или исправьте его.`,
         file,
       );
     }
   }
 
-  if (config.profile !== "lite" && config.profile !== "strict") {
-    throw new CommandError("E_CONFIG", "profile должен быть lite или strict.", file);
-  }
-
-  const relative = config.documents_root ?? "viaferrata";
-  if (
-    typeof relative !== "string" ||
-    !relative.trim() ||
-    path.isAbsolute(relative) ||
-    // Control characters are forbidden in a documents_root path.
-    // oxlint-disable-next-line no-control-regex
-    /[\\*?[\]{}\x00-\x1f]/.test(relative) ||
-    relative.split("/").some((p) => [".", "..", ".git", ".viaferrata", "node_modules"].includes(p))
-  ) {
-    throw new CommandError(
-      "E_CONFIG",
-      "documents_root должен быть непустым относительным путём, не состоящим только из пробелов, без glob, служебных каталогов и . или ..; исправьте путь.",
-      file,
-    );
-  }
-
-  for (const key of ["protected_paths", "required_checks"]) {
-    const value = config[key] ?? [];
-    if (!Array.isArray(value) || value.some((v) => typeof v !== "string" || !v.trim())) {
-      throw new CommandError("E_CONFIG", `${key} должен быть массивом непустых строк.`, file);
-    }
-
-    if (value.length) {
-      throw new CommandError(
-        "E_UNSUPPORTED",
-        `${key} ещё не поддерживается этим срезом; используйте реализацию нужного контроля, не отключайте обязательства ради проверки.`,
-        file,
-      );
-    }
-  }
-
+  const profile = configFields.profile(config.profile, file);
+  const relative = configFields.documents_root(config.documents_root, file);
+  configFields.protected_paths(config.protected_paths, file);
+  const selected = configFields.required_checks(config.required_checks, file);
+  const enabledRules = new Set<RuleId>(
+    [...coreRules, ...(profile === "strict" ? strictRules : []), ...selected].map(
+      (rule) => rule.id,
+    ),
+  );
   const documentsRoot = path.join(root, relative);
   const directories = Object.fromEntries(
     categories.map((c) => [c, path.join(documentsRoot, c)]),
   ) as Record<Category, string>;
 
-  return { root, documentsRoot, directories, profile: config.profile };
+  return { root, documentsRoot, directories, enabledRules, profile };
 }

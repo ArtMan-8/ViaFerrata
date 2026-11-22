@@ -56,8 +56,8 @@ void test("complete existing bundle still requires missing members", async (t) =
   await fs.unlink(path.join(root, planPath));
   const result = run(["validate"], root);
   assert.equal(result.status, 1, result.text);
-  assert.match(result.text, /E_STRUCTURE: Нет обязательного spec\.md/);
-  assert.match(result.text, /E_STRUCTURE: Нет обязательного plan\.md/);
+  assert.match(result.text, /E_STRUCTURE: \[complete-change\] Нет обязательного spec\.md/);
+  assert.match(result.text, /E_STRUCTURE: \[complete-change\] Нет обязательного plan\.md/);
 });
 
 void test("only immediate directories with valid change numbers define empty bundles", async (t) => {
@@ -377,4 +377,211 @@ void test("symlinked documents fail without following external targets", async (
   assert.equal(result.status, 2);
   assert.match(result.text, /E_UNSUPPORTED/);
   assert.match(result.text, /Неполный охват/);
+});
+
+void test("Plan coverage follows direct and same-change AC Covers edges under the selected profile", async (t) => {
+  const root = await project(t);
+  const requirement = "change-000042/spec/R-1";
+  await edit(root, specPath, (s) =>
+    s.replace("## Requirements", "## Requirements\n\n### R-1: Колонки"),
+  );
+  const validate = () => run(["validate"], root);
+  assert.equal(validate().status, 0);
+  await write(
+    root,
+    "viaferrata.toml",
+    'profile="lite"\nrequired_checks=["plan-requirement-coverage"]',
+  );
+  let result = validate();
+  assert.equal(result.status, 1, result.text);
+  assert.match(result.text, /E_PLAN_COVERAGE.*R-1/);
+  await write(root, "viaferrata.toml", 'profile="strict"\nrequired_checks=[]');
+  await edit(root, planPath, (s) => s + "\nУпоминание [" + requirement + "].\n");
+  assert.equal(validate().status, 1);
+  await edit(root, intentPath, (s) => s.replace("[srs-000007/R-1]", "[" + requirement + "]"));
+  result = validate();
+  assert.equal(result.status, 0, result.text);
+  await edit(root, planPath, (s) =>
+    s.replace("[change-000042/intent/AC-1]", "[" + requirement + "]"),
+  );
+  assert.equal(validate().status, 0);
+  await edit(root, planPath, (s) => s.replace("  - Covers:", "  - Verification:"));
+  assert.equal(validate().status, 1);
+  const vibe = await project(t, false);
+  await write(vibe, "viaferrata.toml", 'profile="strict"');
+  assert.equal(run(["validate"], vibe).status, 0);
+});
+
+void test("coverage uses declared Covers in the same working bundle and preserves core validation", async (t) => {
+  const root = await project(t);
+  await write(root, "viaferrata.toml", 'profile="strict"');
+  await edit(root, specPath, (s) =>
+    s.replace("## Requirements", "## Requirements\n\n### R-1: Требование"),
+  );
+  await edit(root, intentPath, (s) => s.replace("[srs-000007/R-1]", "`[change-000042/spec/R-1]`"));
+  const base = path.join(root, "viaferrata/changes/change-000042");
+  const other = path.join(root, "viaferrata/changes/change-000043");
+  await fs.cp(base, other, { recursive: true });
+  for (const name of ["intent", "spec", "plan"]) {
+    await edit(root, "viaferrata/changes/change-000043/" + name + ".md", (s) =>
+      s.replaceAll("change-000042", "change-000043"),
+    );
+  }
+  await edit(root, "viaferrata/changes/change-000043/intent.md", (s) =>
+    s.replace("`[change-000043/spec/R-1]`", "[change-000042/spec/R-1]"),
+  );
+  await edit(root, planPath, (s) =>
+    s.replace("/intent/AC-1]", "/intent/AC-1]\n    - [change-000043/intent/AC-1]"),
+  );
+  let result = run(["validate"], root);
+  assert.equal(result.status, 1);
+  assert.match(result.text, /E_PLAN_COVERAGE:.*change-000042\/spec\/R-1/);
+  await edit(root, planPath, (s) =>
+    s.replace("[change-000043/intent/AC-1]", "[change-000042/spec/R-1]"),
+  );
+  await edit(root, "viaferrata/changes/change-000043/plan.md", (s) =>
+    s.replace("not_started", "cancelled"),
+  );
+  await fs.mkdir(path.join(root, "viaferrata/archive/changes"), { recursive: true });
+  await fs.rename(other, path.join(root, "viaferrata/archive/changes/change-000043"));
+  result = run(["validate"], root);
+  assert.equal(result.status, 0, result.text);
+  await write(root, "viaferrata.toml", 'profile="lite"\nrequired_checks=[]');
+  await edit(root, planPath, (s) =>
+    s.replace("[change-000042/spec/R-1]", "[change-000042/spec/R-99]"),
+  );
+  result = run(["validate"], root);
+  assert.match(result.text, /E_REFERENCE_TARGET/);
+  assert.equal(result.status, 1);
+});
+
+void test("configuration rule IDs survive command error handling", async (t) => {
+  const root = await project(t, false);
+  for (const [toml, id] of [
+    ['profile="fast"', "supported-profile"],
+    ['profile="lite"\nunexpected=true', "known-config-keys"],
+    ['profile="lite"\nrequired_checks=["document-title"]', "selectable-check"],
+  ]) {
+    await write(root, "viaferrata.toml", toml);
+    for (const args of [["init"], ["new", "Проверка"], ["validate"]]) {
+      const result = run(args, root);
+      assert.equal(result.status, 2, result.text);
+      assert.match(result.stderr, /E_CONFIG/);
+      assert.ok(result.stderr.includes(`[${id}]`), result.stderr);
+    }
+  }
+});
+
+void test("form warnings preserve distinct rule IDs and apply only to working documents", async (t) => {
+  const root = await project(t);
+  const file = "viaferrata/specs/export.md";
+  await edit(root, file, (text) =>
+    text.replace(/^# .+$/m, "").replace("## Requirements", "## Items"),
+  );
+  const config = await loadConfig(root);
+  const errors = async () =>
+    (await validateProject(config)).diagnostics.filter((item) => item.code === "W_FORM");
+  const ids = (await errors()).map((item) => item.ruleId);
+  assert.ok(ids.includes("document-title"));
+  assert.ok(ids.includes("required-sections"));
+  const archived = path.join(root, "viaferrata/archive/specs");
+  await fs.mkdir(archived, { recursive: true });
+  await fs.rename(path.join(root, file), path.join(archived, "export.md"));
+  assert.equal((await errors()).length, 0);
+});
+
+void test("scope and reference lists have distinct rules and archive policies", async (t) => {
+  const root = await project(t);
+  await edit(root, specPath, (s) =>
+    s.replace('scope:\n  - "src/export.js"', "scope: bad\norigin: bad"),
+  );
+  const working = run(["validate"], root);
+  assert.equal(working.status, 1, working.text);
+  assert.match(working.stderr, /W_FORM: \[scope-list\] scope/);
+  assert.match(working.stderr, /E_REFERENCE_SYNTAX: \[reference-list\] origin/);
+
+  await edit(root, planPath, (s) => s.replace("execution: not_started", "execution: cancelled"));
+  const archive = path.join(root, "viaferrata/archive/changes");
+  await fs.mkdir(archive, { recursive: true });
+  await fs.rename(path.join(root, path.dirname(specPath)), path.join(archive, "change-000042"));
+  const archived = run(["validate"], root);
+  assert.equal(archived.status, 1, archived.text);
+  assert.doesNotMatch(archived.stderr, /\[scope-list\]/);
+  assert.match(archived.stderr, /E_REFERENCE_SYNTAX: \[reference-list\] origin/);
+});
+
+void test("wave diagnostics identify each independent violation", async (t) => {
+  const root = await project(t);
+  const original = await fs.readFile(path.join(root, planPath), "utf8");
+  for (const execution of [true, false]) {
+    for (const steps of [true, false]) {
+      let plan = original;
+      if (!execution) {
+        plan = plan.replace("Execution: sequential", "Execution: unknown");
+      }
+      if (!steps) {
+        plan = plan.slice(0, plan.indexOf("- [ ] P-1"));
+      }
+      await write(root, planPath, plan);
+      const result = run(["validate"], root);
+      assert.equal(result.status, 0, result.text);
+      assert.equal(result.stderr.includes("W_FORM: [wave-execution]"), !execution);
+      assert.equal(result.stderr.includes("W_FORM: [wave-steps]"), !steps);
+    }
+  }
+});
+
+void test("archive location and execution violations are independent", async (t) => {
+  const root = await project(t);
+  const archive = path.join(root, "viaferrata/archive/changes/change-000042");
+  await fs.mkdir(archive, { recursive: true });
+  await fs.rename(path.join(root, specPath), path.join(archive, "spec.md"));
+  for (const split of [true, false]) {
+    if (!split) {
+      for (const file of [intentPath, planPath]) {
+        await fs.rename(path.join(root, file), path.join(archive, path.basename(file)));
+      }
+    }
+    const file = split ? planPath : path.relative(root, path.join(archive, "plan.md"));
+    for (const execution of ["cancelled", "not_started"]) {
+      await edit(root, file, (s) => s.replace(/^execution: .+$/m, `execution: ${execution}`));
+      const result = run(["validate"], root);
+      const open = execution === "not_started";
+      assert.equal(result.status, split || open ? 1 : 0, result.text);
+      assert.equal(result.stderr.includes("E_ARCHIVE_STATE: [archive-change-location]"), split);
+      assert.equal(result.stderr.includes("E_ARCHIVE_STATE: [archive-change-execution]"), open);
+    }
+  }
+
+  // A second copy with the same ID must not hide the split location.
+  await fs.copyFile(path.join(archive, "spec.md"), path.join(root, specPath));
+  const duplicate = run(["validate"], root);
+  assert.match(duplicate.stderr, /E_DUPLICATE_ID: \[unique-document-id\]/);
+  assert.match(duplicate.stderr, /E_ARCHIVE_STATE: \[archive-change-location\]/);
+});
+
+void test("merged placement rules retain specific Journal and ADR guidance", async (t) => {
+  const root = await project(t);
+  const header = 'created: "2026-11-22"\nupdated: "2026-11-22"\n---\n';
+  await write(
+    root,
+    path.join(path.dirname(planPath), "journal.md"),
+    "---\nid: change-000042/journal\n" +
+      header +
+      "# Journal\n\n## Verification and Result\n\n### Result\n\n#### V-1: Экспорт\n",
+  );
+  await write(
+    root,
+    "viaferrata/adr/export.md",
+    "---\nid: adr-000001\nstatus: draft\n" +
+      header +
+      "# ADR\n\n## Context and Problem Statement\n\n## Decision Outcome\n\n### Consequences\n",
+  );
+  const result = run(["validate"], root);
+  assert.equal(result.status, 0, result.text);
+  assert.match(result.stderr, /W_FORM: \[local-declaration-location\].*подразделе Verification/);
+  assert.match(
+    result.stderr,
+    /W_FORM: \[required-sections\].*Confirmation внутри Decision Outcome/,
+  );
 });

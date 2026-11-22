@@ -5,6 +5,7 @@ import { categories } from "../config.ts";
 import type { Config, Category } from "../config.ts";
 import { diagnostic, errorCode, errorMessage, isFileError } from "../diagnostics.ts";
 import type { Diagnostic } from "../diagnostics.ts";
+import { identityRules } from "../rules/identity.ts";
 import { identity } from "./schema.ts";
 import type { DocumentFile, ReadDocument, Result } from "./types.ts";
 
@@ -48,7 +49,7 @@ export async function discoverDocuments(config: Config): Promise<Result<Discover
         diagnostics.push(
           diagnostic(
             path.relative(config.root, absolute),
-            "E_UNSUPPORTED",
+            identityRules.documentTreeEntries,
             "Симлинки в каталогах документов не поддерживаются; используйте обычные файлы и каталоги.",
           ),
         );

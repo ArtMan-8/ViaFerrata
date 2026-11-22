@@ -1,4 +1,5 @@
 import type { Diagnostic } from "../diagnostics.ts";
+import { referenceRules } from "../rules/reference.ts";
 import { referencePurpose } from "./deltas.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
 import { requiredChangeTypes } from "./schema.ts";
@@ -24,7 +25,7 @@ export function validateReferences(
       const target = addressIdentity(ref.value);
       if (!target) {
         collector.add(
-          "E_REFERENCE_SYNTAX",
+          referenceRules.referenceAddress,
           `Некорректный адрес ${ref.value}; используйте полный логический ID.`,
           ref.offset,
         );
@@ -39,7 +40,7 @@ export function validateReferences(
           (target.type !== doc.metadata.identity.type || target.local || target.bundle))
       ) {
         collector.add(
-          "E_FIELD",
+          referenceRules.referenceType,
           `${ref.key}: неверный тип адресата ${ref.value}; исправьте связь.`,
           ref.offset,
         );
@@ -68,6 +69,7 @@ export function validateReferences(
           const plan = candidate.metadata?.identity.change
             ? index.bundles.get(candidate.metadata.identity.change)?.get("plan")
             : undefined;
+
           return (
             plan?.metadata?.fields.execution === "completed" &&
             candidate.body?.deltas?.some(
@@ -75,20 +77,22 @@ export function validateReferences(
             )
           );
         });
+
       if (!exists && historical && target.type === "srs" && target.local) {
         collector.add(
-          "W_HISTORY",
+          referenceRules.historicalRevision,
           removed
             ? `${ref.value}: идентичность и Before найдены в дельте remove; редакция на момент события не доказана, используйте Git.`
             : `${ref.value}: историческая редакция не восстановлена; нет сохранённой дельты remove, используйте Git.`,
           ref.offset,
         );
+
         continue;
       }
 
       if (exists && historical && target.type === "srs" && target.local && !delta) {
         collector.add(
-          "W_HISTORY",
+          referenceRules.historicalRevision,
           `${ref.value}: текущий ID не подтверждает историческую редакцию; используйте дельту или Git.`,
           ref.offset,
         );
@@ -98,7 +102,7 @@ export function validateReferences(
         document?.archived || (bundle && [...bundle.values()].some((item) => item.archived));
       if (exists && !historical && archivedTarget && !["origin", "supersedes"].includes(purpose)) {
         collector.add(
-          "W_ARCHIVE_REFERENCE",
+          referenceRules.activeReferenceTarget,
           `${doc.metadata.identity.id} → ${ref.value} (${purpose}): текущая зависимость от архивного документа.`,
           ref.offset,
         );
@@ -106,7 +110,7 @@ export function validateReferences(
 
       if (!exists) {
         collector.add(
-          "E_REFERENCE_TARGET",
+          referenceRules.referenceTarget,
           `Нет адресата ${ref.value}; восстановите цель или исправьте ссылку.`,
           ref.offset,
         );

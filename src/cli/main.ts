@@ -124,7 +124,7 @@ export async function main(
     const file = error instanceof CommandError ? error.file : "vf";
     const d = diagnostic(
       path.isAbsolute(file) ? path.relative(root, file) || "." : file,
-      error instanceof CommandError ? error.code : "E_INTERNAL",
+      error instanceof CommandError ? error.reason : "E_INTERNAL",
       error instanceof CommandError
         ? error.message
         : `Не удалось выполнить команду: ${errorMessage(error)}; проверьте окружение и пакет.`,

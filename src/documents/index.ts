@@ -2,6 +2,8 @@ import path from "node:path";
 
 import { diagnostic } from "../diagnostics.ts";
 import type { Diagnostic } from "../diagnostics.ts";
+import { bundleRules } from "../rules/bundle.ts";
+import { identityRules } from "../rules/identity.ts";
 import { requiredChangeTypes } from "./schema.ts";
 import type { DocumentType, IndexedDocument, DocumentIndex, Result } from "./types.ts";
 
@@ -26,14 +28,14 @@ export function buildDocumentIndex<T extends IndexedDocument>(
       diagnostics.push(
         diagnostic(
           doc.file,
-          "E_DUPLICATE_ID",
+          identityRules.uniqueDocumentId,
           `ID ${id} также объявлен в ${other.file}; устраните дубликат.`,
         ),
       );
       diagnostics.push(
         diagnostic(
           other.file,
-          "E_DUPLICATE_ID",
+          identityRules.uniqueDocumentId,
           `ID ${id} также объявлен в ${doc.file}; устраните дубликат.`,
         ),
       );
@@ -59,9 +61,11 @@ export function validateBundles(index: DocumentIndex, changesPath: string): Diag
       if (!bundle.has(type)) {
         const message = `Нет обязательного ${type}.md; восстановите комплект.`;
         if (first) {
-          diagnostics.push(diagnostic(first.file, "E_STRUCTURE", message));
+          diagnostics.push(diagnostic(first.file, bundleRules.completeChange, message));
         } else {
-          diagnostics.push(diagnostic(path.join(changesPath, change), "E_STRUCTURE", message));
+          diagnostics.push(
+            diagnostic(path.join(changesPath, change), bundleRules.completeChange, message),
+          );
         }
       }
     }
@@ -76,7 +80,7 @@ export function validateBundles(index: DocumentIndex, changesPath: string): Diag
       diagnostics.push(
         diagnostic(
           first.file,
-          "E_STRUCTURE",
+          bundleRules.changeJournal,
           "Начатая задача требует Journal; сохраните состояние реализации.",
         ),
       );

@@ -274,7 +274,7 @@
     "exitCode": 2,
     "errors": [
       {
-        "code": "E_UNSUPPORTED",
+        "code": "E_CONFIG",
         "path": "viaferrata.toml"
       }
     ],

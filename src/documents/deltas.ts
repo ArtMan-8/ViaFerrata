@@ -1,3 +1,4 @@
+import { deltaRules } from "../rules/delta.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
 import { activeMarkdownNodes, plain } from "./markdown-nodes.ts";
 import { addressIdentity } from "./schema.ts";
@@ -76,7 +77,7 @@ export function parseDeltas(
       (operation === "remove" ? fields.has("After") : !after)
     ) {
       diagnostics.add(
-        "W_FORM",
+        deltaRules.requirementDelta,
         "Дельта требует одну Operation add/modify/remove, один Changes к R SRS и полный Before/After по операции.",
         heading.position.start.offset,
       );
