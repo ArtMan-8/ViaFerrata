@@ -13,8 +13,6 @@ export const coreRules = [
   configRules.knownConfigKeys,
   configRules.supportedProfile,
   configRules.validDocumentsRoot,
-  configRules.validProtectedPaths,
-  configRules.supportedProtectedPaths,
   configRules.validRequiredChecks,
   configRules.selectableCheck,
   identityRules.documentTreeEntries,

@@ -142,6 +142,30 @@ void test(
       command(movedExecutable, ["summary", "change-000002"], consumerCwd),
       /Записанных проверок: 0/,
     );
+    const digest = command(
+      movedExecutable,
+      ["scope", "change-000002", "--digest"],
+      consumerCwd,
+    ).trim();
+    assert.match(digest, /^[a-f0-9]{64}$/);
+    command("git", ["init", "-q"], target);
+    command("git", ["add", "."], target);
+    command(
+      "git",
+      ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "base"],
+      target,
+    );
+    const base = command("git", ["rev-parse", "HEAD"], target).trim();
+    await edit(target, "viaferrata/changes/change-000002/journal.md", (text) =>
+      text.replace(
+        "decisions: []",
+        `decisions: ["Область согласована"]\nscope_check:\n  base: "${base}"\n  digest: "${digest}"`,
+      ),
+    );
+    assert.match(
+      command(movedExecutable, ["scope", "change-000002"], consumerCwd),
+      /Scope проверен/,
+    );
     await verifyLaunchModes(temp, tarball);
     const workflow = path.join(movedPackage, "instructions/workflow.md");
     await fs.rename(workflow, workflow + ".unavailable");

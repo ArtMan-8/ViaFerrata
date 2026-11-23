@@ -4,6 +4,7 @@ import { text } from "node:stream/consumers";
 
 import { initProject } from "../commands/init.ts";
 import { createChange } from "../commands/new.ts";
+import { checkScope } from "../commands/scope.ts";
 import { journalSummary, inputSummary } from "../commands/summary.ts";
 import { validateProject } from "../commands/validate.ts";
 import { loadConfig } from "../config.ts";
@@ -104,6 +105,11 @@ export async function main(
 
     root = found;
     const config = await loadConfig(root);
+    if (args.command === "scope") {
+      output.log(await checkScope(config, args.change, args.digest));
+      return 0;
+    }
+
     if (args.command === "summary" && args.change !== null) {
       output.log(await journalSummary(config, args.change));
       return 0;

@@ -7,6 +7,7 @@ export type Arguments =
   | { command: "help" }
   | { command: "version" }
   | { command: "validate" }
+  | { command: "scope"; change: string; digest: boolean }
   | { command: "summary"; change: string | null }
   | { command: "init"; path?: string; profile?: "lite" | "strict" }
   | { command: "new"; title: string };
@@ -23,6 +24,7 @@ export function argumentsFor(argv: string[]): Arguments {
         help: { type: "boolean" },
         version: { type: "boolean" },
         profile: { type: "string" },
+        digest: { type: "boolean" },
         stdin: { type: "boolean" },
       },
       allowPositionals: true,
@@ -65,6 +67,23 @@ export function argumentsFor(argv: string[]): Arguments {
   }
 
   if (values.profile !== undefined && command !== "init") {
+    throw usage();
+  }
+
+  if (command === "scope") {
+    if (
+      positionals.length !== 2 ||
+      !argument ||
+      !addressIdentity(argument)?.bundle ||
+      values.stdin
+    ) {
+      throw usage();
+    }
+
+    return { command, change: argument, digest: !!values.digest };
+  }
+
+  if (values.digest) {
     throw usage();
   }
 

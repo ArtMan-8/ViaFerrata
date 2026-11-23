@@ -16,8 +16,10 @@ vf new "Название задачи"
 vf validate
 vf summary change-NNNNNN
 vf summary --stdin
+vf scope change-NNNNNN [--digest]
 
 new/validate ищут ближайший viaferrata.toml вверх от cwd; неверная конфигурация останавливает поиск.
+scope сверяет пути Git с согласованным scope; --digest выводит сумму масок рабочей Spec.
 summary читает Journal по ID в подключённом проекте либо один отчёт YAML/JSON из stdin.
 init использует path либо cwd; первое подключение внутри другого проекта запрещено.
 --profile допускается до и после init, значение — через пробел или =; повторы запрещены.
@@ -30,7 +32,7 @@ validate проверяет метаданные, ID, обязательные �
 Руководство форм: ${instructionFiles.templates}
 `;
 export const limitations =
-  "Не проверены: смысл и полная матрица отношений, покрытие тестами, scope/protected_paths по diff, согласование, evidence и завершение. Полная поддержка lite/strict отсутствует.";
+  "Не проверены: смысл и полная матрица отношений, покрытие тестами, scope по diff, согласование, evidence и завершение. Полная поддержка lite/strict отсутствует.";
 
 export function initReport(result: InitResult): string {
   const { config, files, instructions } = result;
