@@ -14,8 +14,11 @@ vf --version
 vf init [path] [--profile lite|strict]
 vf new "Название задачи"
 vf validate
+vf summary change-NNNNNN
+vf summary --stdin
 
 new/validate ищут ближайший viaferrata.toml вверх от cwd; неверная конфигурация останавливает поиск.
+summary читает Journal по ID в подключённом проекте либо один отчёт YAML/JSON из stdin.
 init использует path либо cwd; первое подключение внутри другого проекта запрещено.
 --profile допускается до и после init, значение — через пробел или =; повторы запрещены.
 --help и --version используются самостоятельно, без команды и других опций.

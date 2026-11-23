@@ -126,6 +126,22 @@ void test(
     assert.deepEqual(await snapshot(target), after);
     const next = command(movedExecutable, ["new", "После архивирования"], consumerCwd);
     assert.match(next, /change-000002/);
+    const journalTemplate = await fs.readFile(
+      path.join(movedPackage, "templates/journal.md"),
+      "utf8",
+    );
+    await write(
+      target,
+      "viaferrata/changes/change-000002/journal.md",
+      journalTemplate
+        .replaceAll("{{change_id}}", "change-000002")
+        .replaceAll("{{title}}", "Проверка")
+        .replaceAll("{{date}}", "2026-11-23"),
+    );
+    assert.match(
+      command(movedExecutable, ["summary", "change-000002"], consumerCwd),
+      /Записанных проверок: 0/,
+    );
     await verifyLaunchModes(temp, tarball);
     const workflow = path.join(movedPackage, "instructions/workflow.md");
     await fs.rename(workflow, workflow + ".unavailable");

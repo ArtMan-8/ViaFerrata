@@ -1,11 +1,13 @@
 import { parseArgs } from "node:util";
 
 import { CommandError, errorCode } from "../diagnostics.ts";
+import { addressIdentity } from "../documents/schema.ts";
 
 export type Arguments =
   | { command: "help" }
   | { command: "version" }
   | { command: "validate" }
+  | { command: "summary"; change: string | null }
   | { command: "init"; path?: string; profile?: "lite" | "strict" }
   | { command: "new"; title: string };
 
@@ -21,6 +23,7 @@ export function argumentsFor(argv: string[]): Arguments {
         help: { type: "boolean" },
         version: { type: "boolean" },
         profile: { type: "string" },
+        stdin: { type: "boolean" },
       },
       allowPositionals: true,
       strict: true,
@@ -62,6 +65,31 @@ export function argumentsFor(argv: string[]): Arguments {
   }
 
   if (values.profile !== undefined && command !== "init") {
+    throw usage();
+  }
+
+  if (command === "summary") {
+    if (values.stdin && positionals.length === 1) {
+      return { command, change: null };
+    }
+
+    if (
+      !values.stdin &&
+      positionals.length === 2 &&
+      argument &&
+      addressIdentity(argument)?.bundle
+    ) {
+      return { command, change: argument };
+    }
+
+    throw new CommandError(
+      "E_USAGE",
+      "Используйте vf summary change-NNNNNN или vf summary --stdin.",
+      "vf",
+    );
+  }
+
+  if (values.stdin) {
     throw usage();
   }
 
