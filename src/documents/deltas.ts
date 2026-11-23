@@ -1,116 +1,195 @@
+import { isMap, isNode, isScalar } from "yaml";
+
 import { deltaRules } from "../rules/delta.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
-import { activeMarkdownNodes, plain } from "./markdown-nodes.ts";
+import { activeMarkdownNodes, plain, textReferences, type LocatedNode } from "./markdown-nodes.ts";
 import { addressIdentity } from "./schema.ts";
-import type { DocumentSource, RequirementDelta, Reference, Result } from "./types.ts";
+import type { DocumentSource, RequirementDelta, Reference } from "./types.ts";
+import { markdownSections, parseYamlFence, type YamlFence } from "./yaml-blocks.ts";
 
-// Parse only active list fields in a requirement; examples and quotations are excluded.
-export function parseDeltas(
-  source: DocumentSource,
-  bodyOffset: number,
-): Result<RequirementDelta[]> {
-  const diagnostics = new SourceDiagnostics(source);
-  const deltas: RequirementDelta[] = [];
-  const masked =
-    source.raw.slice(0, bodyOffset).replace(/[^\r\n]/g, " ") + source.raw.slice(bodyOffset);
-  const events = activeMarkdownNodes(masked);
-  const headings = events.filter((node) => node.type === "heading");
-  for (const heading of headings) {
-    if (heading.depth !== 3 || !/^R-[1-9]\d*:/.test(plain(heading))) {
-      continue;
+// Markdown eligibility is determined on the decoded YAML string. Match bracket
+// occurrences in order, including those in examples, to locate repeated links.
+function revisionReferences(text: string, encoded: string, base: number): Reference[] {
+  const refs = activeMarkdownNodes(text).flatMap((node) =>
+    node.type === "text"
+      ? textReferences(
+          text.slice(node.position.start.offset, node.position.end.offset),
+          node.position.start.offset,
+        )
+      : [],
+  );
+
+  let cursor = 0;
+  const offsets = new Map<number, number>();
+  for (const match of text.matchAll(/\[((?:change|srs|research|adr)-[^\]\r\n]*)\]/g)) {
+    const at = encoded.indexOf(match[0], cursor);
+    if (at >= 0) {
+      offsets.set(match.index, base + at);
+      cursor = at + match[0].length;
     }
-
-    const section = headings
-      .filter(
-        (node) => node.depth === 2 && node.position.start.offset < heading.position.start.offset,
-      )
-      .at(-1);
-    if (!section || plain(section) !== "Requirements") {
-      continue;
-    }
-
-    const start = heading.position.end.offset;
-    const end =
-      headings.find((node) => node.position.start.offset > start && node.depth <= 3)?.position.start
-        .offset ?? masked.length;
-    const items = events.filter(
-      (node) =>
-        node.type === "listItem" &&
-        node.position.start.offset > start &&
-        node.position.end.offset <= end &&
-        !events.some(
-          (parent) =>
-            parent.type === "listItem" &&
-            parent.position.start.offset < node.position.start.offset &&
-            parent.position.end.offset >= node.position.end.offset,
-        ),
-    );
-    const fields = new Map<string, { text: string; offset: number }[]>();
-    for (const item of items) {
-      const raw = masked.slice(item.position.start.offset, item.position.end.offset);
-      const match = /^- (Operation|Changes|Before|After):(?:\s|$)([\s\S]*)$/.exec(raw);
-
-      if (!match) {
-        continue;
-      }
-
-      const values = fields.get(match[1]) ?? [];
-      values.push({ text: match[2].trim(), offset: item.position.start.offset });
-      fields.set(match[1], values);
-    }
-
-    if (!fields.size) {
-      continue;
-    }
-
-    const operation = fields.get("Operation")?.[0]?.text;
-    const changes = fields.get("Changes")?.[0];
-    const match = changes && /^- \[((?:srs)-\d{6}\/R-[1-9]\d*)\]$/.exec(changes.text);
-    const before = fields.get("Before")?.[0]?.text;
-    const after = fields.get("After")?.[0]?.text;
-    if (
-      [...fields.values()].some((values) => values.length !== 1) ||
-      !["add", "modify", "remove"].includes(operation ?? "") ||
-      !match ||
-      !addressIdentity(match[1]) ||
-      (operation === "add" ? fields.has("Before") || !after : !before) ||
-      (operation === "remove" ? fields.has("After") : !after)
-    ) {
-      diagnostics.add(
-        deltaRules.requirementDelta,
-        "Дельта требует одну Operation add/modify/remove, один Changes к R SRS и полный Before/After по операции.",
-        heading.position.start.offset,
-      );
-
-      continue;
-    }
-
-    deltas.push({
-      local: plain(heading).split(":")[0],
-      operation: operation as RequirementDelta["operation"],
-      target: match[1],
-      offset: masked.indexOf(`[${match[1]}]`, changes!.offset),
-      before,
-      after,
-    });
   }
 
-  return { value: deltas, diagnostics: diagnostics.items };
+  // Escaped YAML spellings may have no literal bracket in the source.
+  return refs.map((ref) => ({
+    ...ref,
+    offset: offsets.get(ref.offset) ?? base,
+    key: "содержательная ссылка",
+  }));
 }
 
-export function referencePurpose(raw: string, reference: Reference): string {
-  if (reference.key) {
-    return reference.key;
+function readRequirementDelta(
+  source: DocumentSource,
+  block: YamlFence,
+  local: string,
+  diagnostics: SourceDiagnostics,
+  references: Reference[],
+): RequirementDelta | undefined {
+  const start = block.position.start.offset;
+  let valid = true;
+  function warn(message: string, offset = start) {
+    diagnostics.add(deltaRules.requirementDelta, local + ": " + message, offset);
+    valid = false;
   }
 
-  const events = activeMarkdownNodes(raw);
-  const parent = events
-    .filter(
-      (node) =>
-        node.type === "listItem" &&
-        node.position.start.offset <= reference.offset &&
-        node.position.end.offset > reference.offset,
-    )
-    .find((node) => /^(Covers|Verifies|Changes|Depends on):/.test(plain(node)));
-  return parent ? plain(parent).split(":")[0] : "содержательная ссылка";
+  const {
+    document: doc,
+    text: yaml,
+    offsetInMarkdown: position,
+    closed,
+  } = parseYamlFence(block, source.raw, "source");
+
+  if (!closed) {
+    warn("Закройте YAML-блок дельты.");
+  }
+
+  for (const error of [...doc.errors, ...doc.warnings]) {
+    warn(error.message, position(error.pos[0]));
+  }
+
+  const map = doc.contents;
+  if (!isMap(map)) {
+    warn("Требуется YAML-отображение с полями дельты.");
+    return;
+  }
+
+  const field = (key: string) => map.get(key, true);
+  const offset = (key: string) => position(field(key)?.range?.[0] ?? 0);
+  let targetCount = 0;
+  for (const { key, value } of map.items) {
+    const name = isScalar(key) ? key.value : undefined;
+    if (name === "changes") {
+      targetCount++;
+    } else if (name !== "operation" && name !== "before" && name !== "after") {
+      warn(
+        "Неизвестное поле дельты: " + String(name),
+        position(isNode(key) ? (key.range?.[0] ?? 0) : 0),
+      );
+    }
+
+    if (
+      (name === "before" || name === "after") &&
+      isScalar(value) &&
+      typeof value.value === "string" &&
+      value.range
+    ) {
+      const [from, to] = value.range;
+      for (const ref of revisionReferences(value.value, yaml.slice(from, to), from)) {
+        references.push({ ...ref, offset: position(ref.offset) });
+      }
+    }
+  }
+
+  const stringField = (key: string, forbidden = false): string | undefined => {
+    if (forbidden) {
+      if (map.has(key)) {
+        warn("Поле " + key + " недопустимо для этой операции.", offset(key));
+      }
+
+      return;
+    }
+
+    const node = field(key);
+    const text: unknown = isScalar(node) ? node.value : undefined;
+    if (typeof text === "string" && text.trim()) {
+      return text;
+    }
+
+    warn("Поле " + key + " требует непустую строку.", offset(key));
+  };
+
+  const operation = stringField("operation");
+  const target = stringField("changes");
+  const targetOffset = offset("changes");
+  if (target && targetCount === 1) {
+    references.push({ value: target, offset: targetOffset, key: "Changes" });
+  }
+
+  const before = stringField("before", operation === "add");
+  const after = stringField("after", operation === "remove");
+  if (operation !== "add" && operation !== "modify" && operation !== "remove") {
+    warn("Требуется operation со значением add, modify или remove.", offset("operation"));
+    return;
+  }
+
+  const address = addressIdentity(target);
+  if (!target || address?.type !== "srs" || !address.local?.startsWith("R-")) {
+    warn("Поле changes требует адрес R в SRS.", targetOffset);
+    return;
+  }
+
+  if (valid) {
+    return { local, operation, target, offset: targetOffset, before, after };
+  }
+}
+
+export function readRequirementDeltas(source: DocumentSource, nodes: readonly LocatedNode[]) {
+  const diagnostics = new SourceDiagnostics(source);
+  const value: RequirementDelta[] = [];
+  const references: Reference[] = [];
+  for (const { section, heading, blocks, items } of markdownSections(nodes)) {
+    if (section !== "Requirements" || heading?.children[0]?.type !== "text") {
+      continue;
+    }
+
+    const local = /^(R-[1-9]\d*):\s+\S/.exec(plain(heading))?.[1];
+    if (!local) {
+      continue;
+    }
+
+    for (const item of items) {
+      const { start, end } = item.position;
+      if (
+        /^- (Operation|Changes|Before|After):(?:\s|$)/.test(
+          source.raw.slice(start.offset, end.offset),
+        )
+      ) {
+        diagnostics.add(
+          deltaRules.requirementDelta,
+          local + ": перенесите старые поля дельты в блок yaml.",
+          start.offset,
+        );
+      }
+    }
+
+    for (const [i, block] of blocks.entries()) {
+      if (i > 0) {
+        diagnostics.add(
+          deltaRules.requirementDelta,
+          local + ": повторный YAML-блок дельты.",
+          block.position.start.offset,
+        );
+      }
+
+      const delta = readRequirementDelta(source, block, local, diagnostics, references);
+      if (delta && blocks.length === 1) {
+        value.push(delta);
+      }
+    }
+  }
+
+  return {
+    value,
+    references: references.sort((a, b) => a.offset - b.offset),
+    diagnostics: diagnostics.items,
+  };
 }

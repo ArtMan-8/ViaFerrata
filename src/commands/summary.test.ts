@@ -85,3 +85,40 @@ void test("summary reads only the selected Journal sections and detects conflict
   await fs.mkdir(working);
   assert.match(invoke().stderr, /Конфликт/);
 });
+
+void test("Journal keeps Markdown scalar endings and ignores YAML examples outside the selected headings", async (t) => {
+  const root = await project(t, false);
+  const journal = [
+    "---",
+    "id: change-000042/journal",
+    "---",
+    "## Significant Events",
+    "### Решение",
+    "  ~~~yaml",
+    "  decisions:",
+    "    - |+",
+    "      Текст решения",
+    "",
+    "  ~~~",
+    "## Verification and Result",
+    "### Verification",
+    "#### V-1: Проверка",
+    "~~~yaml",
+    "checks: []",
+    "~~~",
+    "### Result",
+    "> ```yaml",
+    "> broken: [",
+    "> ```",
+    "```yaml",
+    "broken: [",
+    "```",
+  ].join("\r\n");
+  await write(root, "viaferrata/changes/change-000042/journal.md", journal);
+  const result = run(["summary", "change-000042"], root);
+  assert.equal(result.status, 0, result.text);
+  assert.equal(
+    result.stdout,
+    "change-000042\nЗаписанных проверок: 0\nОснования согласования:\nТекст решения\n\n",
+  );
+});

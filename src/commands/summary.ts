@@ -1,23 +1,29 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import remarkParse from "remark-parse";
-import { unified } from "unified";
-import { parse } from "yaml";
+import { parseDocument } from "yaml";
 
 import type { Config } from "../config.ts";
 import { CommandError, errorCode, errorMessage, isFileError } from "../diagnostics.ts";
-import { plain } from "../documents/markdown-nodes.ts";
+import { plain, topLevelMarkdownNodes } from "../documents/markdown-nodes.ts";
 import { readDocumentIdentity } from "../documents/metadata.ts";
+import { markdownSections, parseYamlFence } from "../documents/yaml-blocks.ts";
 import { checkPath } from "../filesystem.ts";
 
 function mapping(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function decode(source: string, location: string): unknown {
+function reportValue(document: ReturnType<typeof parseDocument>, location: string): unknown {
   try {
-    return parse(source, { uniqueKeys: true });
+    for (const warning of document.warnings) {
+      process.emitWarning(warning);
+    }
+
+    if (document.errors.length) {
+      throw document.errors[0];
+    }
+    return document.toJS();
   } catch (error) {
     throw new CommandError("E_YAML", errorMessage(error), location);
   }
@@ -80,25 +86,28 @@ export function inputSummary(input: string): string {
     throw new CommandError("E_USAGE", "Пустой stdin: передайте отчёт.", "stdin");
   }
 
-  return render(decode(input, "stdin"), "stdin");
+  return render(reportValue(parseDocument(input, { uniqueKeys: true }), "stdin"), "stdin");
 }
 
-function journalReport(body: string, file: string) {
+function summarizeJournalSections(body: string, file: string) {
   const report: Record<string, unknown> = {};
-  let section = "";
-  let key = "";
-  for (const node of unified().use(remarkParse).parse(body).children) {
-    if (node.type === "heading") {
-      const title = plain(node);
-      if (node.depth <= 2) {
-        section = node.depth === 2 ? title : "";
-        key = section === "Significant Events" ? "decisions" : "";
-      } else if (node.depth === 3 && section === "Verification and Result") {
-        key = title === "Verification" ? "checks" : "";
-      }
-    } else if (key && node.type === "code" && node.lang === "yaml") {
-      const at = `${file}:${node.position?.start.line}`;
-      const block = decode(node.value, at);
+  for (const { section, heading, blocks } of markdownSections(topLevelMarkdownNodes(body))) {
+    let key: "decisions" | "checks";
+    if (section === "Significant Events") {
+      key = "decisions";
+    } else if (
+      section === "Verification and Result" &&
+      heading &&
+      plain(heading) === "Verification"
+    ) {
+      key = "checks";
+    } else {
+      continue;
+    }
+
+    for (const fence of blocks) {
+      const at = `${file}:${fence.position.start.line}`;
+      const block = reportValue(parseYamlFence(fence, body, "markdown").document, at);
       if (!mapping(block) || !Object.hasOwn(block, key)) {
         continue;
       }
@@ -167,7 +176,10 @@ export async function journalSummary(config: Config, change: string): Promise<st
 
     // Preserve document line numbers for diagnostics in fenced YAML blocks.
     const headerLines = raw.slice(0, metadata.bodyOffset).split("\n").length - 1;
-    const summary = journalReport("\n".repeat(headerLines) + raw.slice(metadata.bodyOffset), file);
+    const summary = summarizeJournalSections(
+      "\n".repeat(headerLines) + raw.slice(metadata.bodyOffset),
+      file,
+    );
     return `${change}${archived ? " (архив)" : ""}\n${summary}`;
   } catch (error) {
     if (!isFileError(error) && errorCode(error) !== "ERR_ENCODING_INVALID_ENCODED_DATA") {
