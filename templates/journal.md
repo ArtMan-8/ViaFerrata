@@ -25,6 +25,10 @@ TODO(VF): текущее состояние, точка продолжения �
 
 ```yaml
 decisions: []
+# При фиксации согласованной области:
+# scope_check:
+#   base: "<полный SHA исходного коммита>"
+#   digest: "<вывод vf scope change-NNNNNN --digest>"
 ```
 
 ## Verification and Result

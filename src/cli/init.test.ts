@@ -114,7 +114,7 @@ for (const args of [
 void test("init preserves strict config, custom document root and existing project data", async (t) => {
   const root = await temporary(t);
   const config =
-    '# выбор проекта\r\nprofile = "strict"\r\ndocuments_root = "process docs"\r\nrequired_checks = []\r\nprotected_paths = []\r\n';
+    '# выбор проекта\r\nprofile = "strict"\r\ndocuments_root = "process docs"\r\nrequired_checks = []\r\n';
   await write(root, "viaferrata.toml", config);
   await write(root, "README.md", "Описание пользователя\n");
   // An unfinished document must not be inspected by init.
@@ -140,7 +140,8 @@ for (const [body, code, args] of [
   ['profile = "lite"\nprofile = "strict"\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\nunknown = true\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\nrequired_checks = ["npm test"]\n', "E_CONFIG", ["init"]],
-  ['profile = "lite"\nprotected_paths = ["src/**"]\n', "E_UNSUPPORTED", ["init"]],
+  ['profile = "lite"\nprotected_paths = []\n', "known-config-keys", ["init"]],
+  ['profile = "lite"\nprotected_paths = ["src/**"]\n', "known-config-keys", ["init"]],
   ['profile = "lite"\ndocuments_root = "../outside"\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\ndocuments_root = "  "\n', "E_CONFIG", ["init"]],
 ] as const) {

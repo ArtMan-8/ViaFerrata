@@ -114,16 +114,6 @@ const configFields = {
 
     return relative;
   },
-  protected_paths(value: unknown, file: string) {
-    const paths = stringList(value, "protected_paths", file, configRules.validProtectedPaths);
-    if (paths.length) {
-      throw new CommandError(
-        configRules.supportedProtectedPaths,
-        "protected_paths ещё не поддерживается этим срезом; используйте реализацию нужного контроля, не отключайте обязательства ради проверки.",
-        file,
-      );
-    }
-  },
   required_checks(value: unknown, file: string) {
     return stringList(value, "required_checks", file, configRules.validRequiredChecks).map((id) => {
       const rule = strictRules.find((candidate) => candidate.id === id);
@@ -182,7 +172,6 @@ export function parseConfig(root: string, raw: string): Config {
 
   const profile = configFields.profile(config.profile, file);
   const relative = configFields.documents_root(config.documents_root, file);
-  configFields.protected_paths(config.protected_paths, file);
   const selected = configFields.required_checks(config.required_checks, file);
   const enabledRules = new Set<RuleId>(
     [...coreRules, ...(profile === "strict" ? strictRules : []), ...selected].map(

@@ -8,6 +8,7 @@ export type DiagnosticCode =
   | "E_INTERNAL"
   | "E_CONFIG"
   | "E_USAGE"
+  | "E_SCOPE"
   | "E_RUNTIME"
   | "E_EXISTS"
   | "E_ID_EXHAUSTED"
