@@ -20,8 +20,27 @@ function delta(
   before = "CSV с запятой.",
   after = "CSV с точкой с запятой.",
 ) {
-  return `## Requirements\n\n### R-1: CSV\n\n- Operation: ${operation}\n- Changes:\n  - [${target}]\n${operation !== "add" ? `- Before: ${before}\n` : ""}${operation !== "remove" ? `- After: ${after}\n` : ""}`;
+  const lines = [
+    "## Requirements",
+    "",
+    "### R-1: CSV",
+    "",
+    "```yaml",
+    "operation: " + operation,
+    "changes: " + target,
+  ];
+
+  if (operation !== "add") {
+    lines.push("before: " + JSON.stringify(before));
+  }
+
+  if (operation !== "remove") {
+    lines.push("after: " + JSON.stringify(after));
+  }
+
+  return [...lines, "```"].join("\n");
 }
+
 async function bundle(root: string, location: string, execution: string, body: string) {
   const id = location.split("/").at(-1)!;
   await write(root, `${location}/intent.md`, document(`${id}/intent`, "## Goal\nЭкспорт."));
@@ -94,7 +113,7 @@ void test("future add exempts only its Changes reference; malformed delta and or
   await write(
     root,
     `${location}/spec.md`,
-    document("change-000001/spec", delta("add").replace("- After:", "- Text:")),
+    document("change-000001/spec", delta("add").replace("after:", "text:")),
   );
   const invalid = await check(root);
   assert(invalid.diagnostics.some((d) => d.code === "W_FORM"));
@@ -252,4 +271,45 @@ void test("deleting an unstarted bundle leaves no Journal and releases its numbe
   assert.deepEqual((await check(root)).diagnostics, []);
   assert.equal((await createChange(config, "Новая задача")).id, "change-000001");
   assert.deepEqual((await fs.readdir(directory)).sort(), ["intent.md", "plan.md", "spec.md"]);
+});
+
+void test("vf new example becomes a validated delta only after the author activates it", async (t) => {
+  const root = await project(t, false);
+  const config = await loadConfig(root);
+  await createChange(config, "Проверка миграции");
+  const spec = "viaferrata/changes/change-000001/spec.md";
+  const generated = await fs.readFile(path.join(root, spec), "utf8");
+  const example = /^````markdown\n([\s\S]*?)\n````$/m.exec(generated);
+  assert(example);
+  const relevant = async () =>
+    (await check(root)).diagnostics.filter(
+      (d) =>
+        d.file.endsWith("/spec.md") &&
+        ["requirement-delta", "reference-address", "reference-target"].includes(d.ruleId ?? ""),
+    );
+  assert.deepEqual(await relevant(), []);
+  await write(root, spec, document("change-000001/spec", "## Requirements\n\n" + example[1]));
+  const missing = await relevant();
+  assert(missing.some((d) => d.code === "E_REFERENCE_TARGET"));
+  await write(
+    root,
+    "viaferrata/specs/export.md",
+    document("srs-000001", srs.replace("R-2", "R-1")),
+  );
+  assert.deepEqual(await relevant(), []);
+  await edit(root, spec, (body) =>
+    body.replace("changes: srs-000001/R-1", "changes: srs-000001/AC-1"),
+  );
+  const invalid = await relevant();
+  assert(invalid.some((d) => d.ruleId === "requirement-delta"));
+  assert(invalid.some((d) => d.code === "E_REFERENCE_SYNTAX"));
+  await write(
+    root,
+    spec,
+    document(
+      "change-000001/spec",
+      delta("modify", "srs-000001/R-1", "[srs-000001/R-2]", "[srs-000001/R-3]"),
+    ),
+  );
+  assert.equal((await relevant()).filter((d) => d.code === "E_REFERENCE_TARGET").length, 2);
 });

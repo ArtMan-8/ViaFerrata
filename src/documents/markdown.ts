@@ -2,10 +2,11 @@ import type { Heading } from "mdast";
 
 import { identityRules } from "../rules/identity.ts";
 import { structureRules } from "../rules/structure.ts";
-import { parseDeltas } from "./deltas.ts";
+import { readRequirementDeltas } from "./deltas.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
 import {
   activeMarkdownNodes,
+  textReferences,
   plain,
   type SourcePosition,
   type LocatedNode,
@@ -48,7 +49,8 @@ export function parseDocumentBody(
   const source =
     input.raw.slice(0, metadata.bodyOffset).replace(/[^\r\n]/g, " ") +
     input.raw.slice(metadata.bodyOffset);
-  const events = activeMarkdownNodes(source);
+  const sectionNodes: LocatedNode[] = [];
+  const events = activeMarkdownNodes(source, documentType === "spec" ? sectionNodes : undefined);
   const headings = events.filter((n) => n.type === "heading");
   const h1 = headings.filter((n) => n.depth === 1);
   if (h1.length !== 1 || !plain(h1[0]).trim()) {
@@ -269,19 +271,7 @@ export function parseDocumentBody(
       );
     }
 
-    const brackets = /\[((?:change|srs|research|adr)-[^\]\r\n]*)\]/g;
-    for (const m of rawText.matchAll(brackets)) {
-      let backslashes = 0;
-      for (let i = m.index - 1; i >= 0 && rawText[i] === "\\"; i--) {
-        backslashes++;
-      }
-
-      if (backslashes % 2) {
-        continue;
-      }
-
-      references.push({ value: m[1], offset: offset + m.index });
-    }
+    references.push(...textReferences(rawText, offset));
   }
 
   if (documentType === "intent") {
@@ -362,11 +352,16 @@ export function parseDocumentBody(
 
   const deltas =
     documentType === "spec"
-      ? parseDeltas(input, metadata.bodyOffset)
-      : { value: [], diagnostics: [] };
+      ? readRequirementDeltas(input, sectionNodes)
+      : { value: [], references: [], diagnostics: [] };
 
   return {
-    value: { locals, references, covers, deltas: deltas.value },
+    value: {
+      locals,
+      references: [...references, ...deltas.references],
+      covers,
+      deltas: deltas.value,
+    },
     diagnostics: [...diagnostics.items, ...deltas.diagnostics],
   };
 }

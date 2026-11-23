@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { text } from "node:stream/consumers";
 
 import { initProject } from "../commands/init.ts";
 import { createChange } from "../commands/new.ts";
+import { journalSummary, inputSummary } from "../commands/summary.ts";
 import { validateProject } from "../commands/validate.ts";
 import { loadConfig } from "../config.ts";
 import {
@@ -86,6 +88,11 @@ export async function main(
       return 0;
     }
 
+    if (args.command === "summary" && args.change === null) {
+      output.log(inputSummary(await text(process.stdin)));
+      return 0;
+    }
+
     const found = await findProjectRoot(root);
     if (!found) {
       throw new CommandError(
@@ -97,6 +104,11 @@ export async function main(
 
     root = found;
     const config = await loadConfig(root);
+    if (args.command === "summary" && args.change !== null) {
+      output.log(await journalSummary(config, args.change));
+      return 0;
+    }
+
     if (args.command === "new") {
       const result = await createChange(config, args.title);
       for (const item of result.diagnostics) {
