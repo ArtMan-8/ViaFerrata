@@ -25,6 +25,7 @@ TODO(VF): текущее состояние, точка продолжения �
 
 ```yaml
 decisions: []
+# completion_digest: "<SHA-256 согласованного списка completion_checks>"
 # При фиксации согласованной области:
 # scope_check:
 #   base: "<полный SHA исходного коммита>"
@@ -43,6 +44,7 @@ checks: []
 # checks:
 #   - subject: Установка архива
 #     outcome: passed
+#     verification: V-1
 #     source: Отчёт CI, запуск 42
 #     revision: "Коммит abc1234"
 ```

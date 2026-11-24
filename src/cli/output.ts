@@ -17,6 +17,7 @@ vf validate
 vf summary change-NNNNNN
 vf summary --stdin
 vf scope change-NNNNNN [--digest]
+vf complete change-NNNNNN
 
 new/validate ищут ближайший viaferrata.toml вверх от cwd; неверная конфигурация останавливает поиск.
 scope сверяет пути Git с согласованным scope; --digest выводит сумму масок рабочей Spec.
@@ -27,7 +28,7 @@ init использует path либо cwd; первое подключение
 init подключает существующий каталог; для новой конфигурации обязателен --profile.
 new создаёт три draft-документа по библиотечным формам с optional-подсказками.
 validate проверяет метаданные, ID, обязательные разделы, placeholders и существование ссылок, без изменения файлов.
-Полная поддержка lite/strict, evidence и контроль завершения пока отсутствуют.
+complete проверяет условия завершения deep-задачи и обновляет execution рабочего Plan.
 Инструкции: ${instructionFiles.workflow}
 Руководство форм: ${instructionFiles.templates}
 `;

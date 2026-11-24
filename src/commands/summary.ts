@@ -89,7 +89,7 @@ export function inputSummary(input: string): string {
   return render(reportValue(parseDocument(input, { uniqueKeys: true }), "stdin"), "stdin");
 }
 
-function summarizeJournalSections(body: string, file: string) {
+export function journalReport(body: string, file: string) {
   const report: Record<string, unknown> = {};
   for (const { section, heading, blocks } of markdownSections(topLevelMarkdownNodes(body))) {
     let key: "decisions" | "checks";
@@ -128,7 +128,7 @@ function summarizeJournalSections(body: string, file: string) {
     );
   }
 
-  return render(report, file);
+  return report;
 }
 
 async function exists(directory: string) {
@@ -176,11 +176,8 @@ export async function journalSummary(config: Config, change: string): Promise<st
 
     // Preserve document line numbers for diagnostics in fenced YAML blocks.
     const headerLines = raw.slice(0, metadata.bodyOffset).split("\n").length - 1;
-    const summary = summarizeJournalSections(
-      "\n".repeat(headerLines) + raw.slice(metadata.bodyOffset),
-      file,
-    );
-    return `${change}${archived ? " (архив)" : ""}\n${summary}`;
+    const report = journalReport("\n".repeat(headerLines) + raw.slice(metadata.bodyOffset), file);
+    return `${change}${archived ? " (архив)" : ""}\n${render(report, file)}`;
   } catch (error) {
     if (!isFileError(error) && errorCode(error) !== "ERR_ENCODING_INVALID_ENCODED_DATA") {
       throw error;

@@ -58,6 +58,7 @@ export interface RequirementDelta {
 }
 
 export interface DocumentBody {
+  readonly openSteps?: readonly string[];
   readonly revisions?: ReadonlyMap<string, string>;
   readonly deltas?: readonly RequirementDelta[];
   readonly locals: ReadonlySet<string>;

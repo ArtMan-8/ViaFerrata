@@ -106,6 +106,7 @@ export function parseDocumentBody(
   let headingOwner: string | null = null;
   let step: LocatedNode | null = null;
   let stepId: string | null = null;
+  const openSteps: string[] = [];
   const waves: Wave[] = [];
   const ac: { node: Heading & { position: SourcePosition }; id: string }[] = [];
   function declare(id: string, node: LocatedNode, group: LocalType) {
@@ -245,6 +246,10 @@ export function parseDocumentBody(
           );
         } else {
           declare(m[1], node, "P");
+          if (firstLine.startsWith("- [ ]")) {
+            openSteps.push(m[1]);
+          }
+
           if (!wave) {
             diagnostics.add(
               structureRules.stepWave,
@@ -366,6 +371,7 @@ export function parseDocumentBody(
         ...references.map((ref) => ({ ...ref, ...relationTargets.get(ref.offset) })),
         ...deltas.references,
       ],
+      openSteps,
       revisions,
       deltas: deltas.value,
     },
