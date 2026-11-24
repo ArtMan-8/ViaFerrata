@@ -41,14 +41,22 @@ void test("init preserves previous navigation in both layouts with BOM and CRLF"
 Validate подтверждает только заявленную структуру, не согласование и завершение.
 <!-- viaferrata:end -->
 `;
-  for (const compact of [false, true]) {
-    for (const crlf of [false, true]) {
-      const block = compact ? previous.replace("begin -->\n\n", "begin -->\n") : previous;
+  const versioned = previous.replace(
+    /Прочитай локальные правила проекта\.[\s\S]*?bin\./,
+    `Прочитай локальные правила проекта. Используй выбранный способ запуска:
+npx viaferrata@0.1.0 --help либо vf --help при глобальной установке.
+Открой указанные инструкции и руководство форм из установленного пакета.
+В новой сессии повтори help тем же способом; путь кеша npm не закрепляй.`,
+  );
+  for (const text of [previous, versioned]) {
+    for (const block of [text, text.replace("begin -->\n\n", "begin -->\n")]) {
       const content = "Правила пользователя\n" + block + "\nДополнения\n";
-      await write(root, "AGENTS.md", crlf ? "\uFEFF" + content.replaceAll("\n", "\r\n") : content);
-      const before = await snapshot(root);
-      await initProject(root);
-      assert.deepEqual(await snapshot(root), before);
+      for (const bytes of [content, "\uFEFF" + content.replaceAll("\n", "\r\n")]) {
+        await write(root, "AGENTS.md", bytes);
+        const before = await snapshot(root);
+        await initProject(root);
+        assert.deepEqual(await snapshot(root), before);
+      }
     }
   }
   await write(root, "AGENTS.md", previous.replace("путь к установленному bin", "другую команду"));

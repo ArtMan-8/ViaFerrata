@@ -17,7 +17,7 @@ Validate подтверждает только заявленную структ
 ${end}
 `;
 
-const agentBlock = previousAgentBlock.replace(
+const versionedAgentBlock = previousAgentBlock.replace(
   "Прочитай локальные правила проекта. Запусти используемый vf с --help и открой\n" +
     "указанные инструкции и руководство форм из установленного пакета.\n" +
     "Если vf отсутствует в PATH, используй путь к установленному bin.",
@@ -26,6 +26,16 @@ const agentBlock = previousAgentBlock.replace(
     "Открой указанные инструкции и руководство форм из установленного пакета.\n" +
     "В новой сессии повтори help тем же способом; путь кеша npm не закрепляй.",
 );
+
+const agentBlock = `${begin}
+
+## ViaFerrata
+
+Прочитай локальные правила проекта. В начале сессии выполни \`vf --help\` при глобальной установке
+или \`npx viaferrata@latest --help\` при запуске через npx. Если проект закрепил версию, используй её.
+Открой workflow.md по пути из строки «Инструкции» и выбери инструкции для текущей задачи.
+${end}
+`;
 
 export function decode(bytes: Buffer, file: string): string {
   try {
@@ -60,19 +70,17 @@ export function agentsText(original: string, file: string): string {
   const normalized = original.replace(/^\uFEFF/, "").replaceAll("\r\n", "\n");
   const start = normalized.indexOf(begin);
   const finish = normalized.indexOf(end) + end.length;
-  const expected = agentBlock.trimEnd();
   const actual = normalized.slice(start, finish);
-  const previous = previousAgentBlock.trimEnd();
-  const legacy = previous.replace(`${begin}\n\n`, `${begin}\n`);
+  const knownBlock = [agentBlock, versionedAgentBlock, previousAgentBlock].some((block) => {
+    const expected = block.trimEnd();
+    return actual === expected || actual === expected.replace(`${begin}\n\n`, `${begin}\n`);
+  });
   if (
     starts === 1 &&
     ends === 1 &&
     (start === 0 || normalized[start - 1] === "\n") &&
     (finish === normalized.length || normalized[finish] === "\n") &&
-    (actual === expected ||
-      actual === expected.replace(`${begin}\n\n`, `${begin}\n`) ||
-      actual === previous ||
-      actual === legacy)
+    knownBlock
   ) {
     return original;
   }

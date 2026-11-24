@@ -44,7 +44,7 @@ export function initReport(result: InitResult): string {
     ...files.map(({ file, action }) => `${file}: ${action}`),
     `Инструкции: ${instructions.workflow}`,
     `Руководство форм: ${instructions.templates}`,
-    "Подключение подготовлено. Следующий шаг: new → заполнение агентом → validate.",
+    "Подключение подготовлено. Откройте AGENTS.md и передайте агенту цель задачи.",
     "Правило .gitignore исключает неотслеживаемую .viaferrata/; ранее tracked данные требуют отдельного решения.",
     "Подключение не подтверждает согласование или завершение задачи. Полная поддержка lite/strict отсутствует.",
   ].join("\n");

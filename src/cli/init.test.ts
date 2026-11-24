@@ -30,18 +30,11 @@ void test("init creates exactly three files and preserves bytes and mtime on rep
   assert.equal(await fs.readFile(path.join(root, "viaferrata.toml"), "utf8"), 'profile = "lite"\n');
   assert.equal(await fs.readFile(path.join(root, ".gitignore"), "utf8"), "/.viaferrata/\n");
   const agents = await fs.readFile(path.join(root, "AGENTS.md"), "utf8");
-  for (const text of [
-    "vf --help",
-    "npx viaferrata@0.1.0 --help",
-    "В новой сессии",
-    "viaferrata.toml",
-    "documents_root",
-    "Intent/Spec/Plan",
-    "Journal",
-  ]) {
+  for (const text of ["vf --help", "npx viaferrata@latest --help", "workflow.md", "Инструкции"]) {
     assert(agents.includes(text), text);
   }
   assert(!agents.includes(root));
+  assert.doesNotMatch(agents, /viaferrata@\d|Intent\/Spec\/Plan|Journal|documents_root/);
   assert(!agents.includes("change-000002"));
   const before = await snapshot(root);
   const second = run(["init"], root);
