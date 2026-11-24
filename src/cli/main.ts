@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { text } from "node:stream/consumers";
 
+import { completeChange } from "../commands/complete.ts";
 import { initProject } from "../commands/init.ts";
 import { createChange } from "../commands/new.ts";
 import { checkScope } from "../commands/scope.ts";
@@ -105,6 +106,16 @@ export async function main(
 
     root = found;
     const config = await loadConfig(root);
+    if (args.command === "complete") {
+      output.log(
+        await completeChange(config, args.change, (warning) =>
+          output.error(formatDiagnostic(warning)),
+        ),
+      );
+
+      return 0;
+    }
+
     if (args.command === "scope") {
       output.log(await checkScope(config, args.change, args.digest));
       return 0;

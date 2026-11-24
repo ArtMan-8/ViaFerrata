@@ -4,6 +4,7 @@ import { CommandError, errorCode } from "../diagnostics.ts";
 import { addressIdentity } from "../documents/schema.ts";
 
 export type Arguments =
+  | { command: "complete"; change: string }
   | { command: "help" }
   | { command: "version" }
   | { command: "validate" }
@@ -122,6 +123,15 @@ export function argumentsFor(argv: string[]): Arguments {
     }
 
     return { command, path: argument, profile: values.profile };
+  }
+
+  if (
+    command === "complete" &&
+    positionals.length === 2 &&
+    argument &&
+    addressIdentity(argument)?.bundle
+  ) {
+    return { command, change: argument };
   }
 
   if (command === "validate" && positionals.length === 1) {

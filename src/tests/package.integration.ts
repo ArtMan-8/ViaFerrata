@@ -166,6 +166,12 @@ void test(
       command(movedExecutable, ["scope", "change-000002"], consumerCwd),
       /Scope проверен/,
     );
+    const planPath = path.join(target, "viaferrata/changes/change-000002/plan.md");
+    const draftPlan = await fs.readFile(planPath);
+    const completion = run(["complete", "change-000002"], consumerCwd, movedExecutable);
+    assert.notEqual(completion.status, 0);
+    assert.doesNotMatch(completion.stderr, /E_USAGE|E_INTERNAL/);
+    assert.deepEqual(await fs.readFile(planPath), draftPlan);
     await verifyLaunchModes(temp, tarball);
     const workflow = path.join(movedPackage, "instructions/workflow.md");
     await fs.rename(workflow, workflow + ".unavailable");
