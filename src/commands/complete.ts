@@ -230,16 +230,18 @@ function verifyReport(
       fail("Нет Verifies для " + target, journal.file);
     }
 
-    for (const { owner } of verifications) {
-      const rows = records.filter((record) => record.verification === owner);
-      if (
-        !owner ||
-        !journal.body?.revisions?.get(owner) ||
-        !rows.length ||
-        !rows.every(successful)
-      ) {
-        fail("Для " + target + " проверьте Revision и исход " + owner, journal.file);
+    const covered = verifications.some(({ owner }) => {
+      if (!owner || !journal.body?.revisions?.get(owner)) {
+        return false;
       }
+
+      const rows = records.filter((record) => record.verification === owner);
+      return rows.length > 0 && rows.every(successful);
+    });
+
+    if (!covered) {
+      const ids = verifications.map((ref) => ref.owner).join(", ");
+      fail("Для " + target + " проверьте Revision и исход проверок: " + ids, journal.file);
     }
   }
 }

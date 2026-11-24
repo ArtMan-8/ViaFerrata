@@ -115,6 +115,24 @@ checks:
     assert.match(result.stderr, reason);
     assert.equal(await fs.readFile(path.join(root, dir, "plan.md"), "utf8"), plan);
   }
+  // Put the incomplete V first so coverage must find the valid V for this AC.
+  const extraVerification = journal
+    .replace(
+      "    verification: V-1",
+      "    verification: V-1\n  - { subject: extra, outcome: passed, source: CI, revision: inputs, verification: V-2 }",
+    )
+    .replace(
+      "#### V-1:",
+      `#### V-2: Повтор\n\n- Verifies:\n  - [${change}/intent/AC-1]\n\n#### V-1:`,
+    );
+  await write(root, dir + "journal.md", extraVerification);
+  const covered = cli();
+  assert.equal(covered.status, 0, covered.text);
+  assert.equal(
+    await fs.readFile(path.join(root, dir, "plan.md"), "utf8"),
+    plan.replace("'in_progress'", "completed"),
+  );
+  await write(root, dir + "plan.md", plan);
   await write(root, dir + "journal.md", journal);
   const configPath = path.join(root, "viaferrata.toml");
   const originalConfig = await fs.readFile(configPath, "utf8");

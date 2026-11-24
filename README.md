@@ -43,14 +43,14 @@
 Через npx:
 
 ```sh
-npx viaferrata@0.1.0 --help
-npx viaferrata@0.1.0 init /path/to/project --profile lite
+npx viaferrata@latest --help
+npx viaferrata@latest init /path/to/project --profile lite
 ```
 
 Через глобально установленный vf:
 
 ```sh
-npm install -g viaferrata@0.1.0
+npm install -g viaferrata@latest
 vf --help
 vf init /path/to/project --profile lite
 ```
