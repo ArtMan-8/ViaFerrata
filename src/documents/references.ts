@@ -1,28 +1,9 @@
 import type { Diagnostic } from "../diagnostics.ts";
 import { referenceRules } from "../rules/reference.ts";
 import { SourceDiagnostics } from "./diagnostics.ts";
-import { activeMarkdownNodes, plain } from "./markdown-nodes.ts";
 import { requiredChangeTypes } from "./schema.ts";
 import { addressIdentity } from "./schema.ts";
-import type { ParsedDocument, DocumentIndex, Reference } from "./types.ts";
-
-function referencePurpose(raw: string, reference: Reference): string {
-  if (reference.key) {
-    return reference.key;
-  }
-
-  const events = activeMarkdownNodes(raw);
-  const parent = events
-    .filter(
-      (node) =>
-        node.type === "listItem" &&
-        node.position.start.offset <= reference.offset &&
-        node.position.end.offset > reference.offset,
-    )
-    .find((node) => /^(Covers|Verifies|Changes|Depends on):/.test(plain(node)));
-
-  return parent ? plain(parent).split(":")[0] : "содержательная ссылка";
-}
+import type { ParsedDocument, DocumentIndex } from "./types.ts";
 
 export function validateReferences(
   documents: readonly ParsedDocument[],
@@ -69,7 +50,7 @@ export function validateReferences(
       const exists = target.bundle
         ? requiredChangeTypes.every((t) => bundle?.has(t))
         : document && (!target.local || document.body?.locals.has(target.local));
-      const purpose = referencePurpose(doc.raw, ref);
+      const purpose = ref.key ?? "содержательная ссылка";
       const delta =
         purpose === "Changes"
           ? doc.body?.deltas?.find(

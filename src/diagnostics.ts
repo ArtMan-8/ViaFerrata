@@ -20,6 +20,7 @@ export type DiagnosticCode =
   | "W_HISTORY"
   | "W_SYNC_PENDING"
   | "E_ARCHIVE_STATE"
+  | "W_VERIFICATION_COVERAGE"
   | "E_PLAN_COVERAGE"
   | "E_STRUCTURE"
   | "E_DUPLICATE_LOCAL_ID"

@@ -170,7 +170,7 @@ void test("current archive references warn with purpose; origin and same-type su
     "viaferrata/specs/new.md",
     document(
       "srs-000002",
-      srs + "\n- Covers:\n  - [srs-000001/R-2]\n",
+      srs + "\n## Scenarios\n\n### S-1: Экспорт\n\n- Covers:\n  - [srs-000001/R-2]\n",
       "status: approved\norigin:\n  - srs-000001\nsupersedes:\n  - srs-000001\n",
     ),
   );
