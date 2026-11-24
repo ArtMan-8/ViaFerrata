@@ -52,6 +52,9 @@ export const coreRules = [
   referenceRules.referenceListStyle,
   referenceRules.referenceAddress,
   referenceRules.referenceType,
+  referenceRules.relationType,
+  referenceRules.relationSelf,
+  referenceRules.relationCycle,
   referenceRules.referenceTarget,
   referenceRules.historicalRevision,
   referenceRules.activeReferenceTarget,
@@ -61,7 +64,10 @@ export const coreRules = [
   archiveRules.pendingSynchronization,
 ] as const;
 
-export const strictRules = [coverageRules.planRequirementCoverage] as const;
+export const strictRules = [
+  coverageRules.planRequirementCoverage,
+  coverageRules.verificationCoverage,
+] as const;
 
 export type Rule = (typeof coreRules)[number] | (typeof strictRules)[number];
 

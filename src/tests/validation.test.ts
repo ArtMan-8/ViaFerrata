@@ -585,3 +585,193 @@ void test("merged placement rules retain specific Journal and ADR guidance", asy
     /W_FORM: \[required-sections\].*Confirmation внутри Decision Outcome/,
   );
 });
+
+void test("scenario coverage follows typed incoming edges from the same change", async (t) => {
+  const root = await project(t);
+  const base = "change-000042/";
+  const requirement = base + "spec/R-1";
+  const criterion = base + "intent/AC-1";
+  const scenario = base + "spec/S-1";
+  await write(root, "viaferrata.toml", 'profile="strict"');
+  await edit(root, planPath, (s) => s.replace(criterion, scenario));
+  await edit(root, intentPath, (s) => s.replace("srs-000007/R-1", requirement));
+  await edit(
+    root,
+    specPath,
+    (s) =>
+      s.replace("## Requirements", "## Requirements\n\n### R-1: Выгрузка") +
+      "\n## Scenarios\n\n### S-1: Выборка\n\n- Covers:\n  - [" +
+      criterion +
+      "]\n",
+  );
+  const validate = async () => validateProject(await loadConfig(root));
+  for (const target of [criterion, requirement]) {
+    const data = await validate();
+    assert(!data.diagnostics.some((d) => d.severity === "error"));
+    assert(data.incoming.get(target)?.some((edge) => edge.source === scenario));
+    await edit(root, specPath, (s) =>
+      s.replace("  - [" + criterion + "]", "  - [" + requirement + "]"),
+    );
+  }
+  await edit(root, specPath, (s) =>
+    s.replace("  - [" + requirement + "]", "  - Пример [" + requirement + "]"),
+  );
+  assert((await validate()).diagnostics.some((d) => d.code === "E_PLAN_COVERAGE"));
+  await edit(root, specPath, (s) =>
+    s.replace("Пример [" + requirement + "]", "[" + base + "plan/P-1]"),
+  );
+  assert(
+    (await validate()).diagnostics.some((d) => d.ruleId === "relation-type" && d.file === specPath),
+  );
+  // Drop the declared target while leaving its consumer untouched.
+  await edit(root, specPath, (s) => s.replace("### S-1:", "### S-2:"));
+  assert(
+    (await validate()).diagnostics.some(
+      (d) => d.code === "E_REFERENCE_TARGET" && d.file === planPath,
+    ),
+  );
+});
+
+void test("Depends on rejects self, cross-plan and cyclic edges", async (t) => {
+  const root = await project(t);
+  const original = await fs.readFile(path.join(root, planPath), "utf8");
+  const other = "change-000043";
+  for (const file of [intentPath, planPath, specPath]) {
+    const content = await fs.readFile(path.join(root, file), "utf8");
+    await write(
+      root,
+      file.replace("change-000042", other),
+      content.replaceAll("change-000042", other),
+    );
+  }
+  const depends = (target: string) => "  - Depends on:\n    - [" + target + "]\n";
+  const p = "change-000042/plan/P-";
+  for (const [target, rule] of [
+    [p + "1", "relation-self"],
+    [other + "/plan/P-1", "relation-type"],
+    [p + "2", "relation-cycle"],
+  ]) {
+    await write(
+      root,
+      planPath,
+      original + depends(target) + "- [ ] P-2: Затем\n" + depends(p + "1"),
+    );
+    const result = run(["validate"], root);
+    assert.equal(result.status, 1, result.text);
+    assert.ok(
+      result.stderr.includes("[" + rule + "]") && result.stderr.includes(target),
+      result.stderr,
+    );
+  }
+  await write(root, planPath, original + "- [ ] P-2: Затем\n" + depends(p + "1"));
+  assert.equal(run(["validate"], root).status, 0);
+});
+
+void test("supersedes cycles are independent of other incoming references", async (t) => {
+  const root = await project(t);
+  const file = "viaferrata/specs/export.md";
+  const base = await fs.readFile(path.join(root, file), "utf8");
+  for (const [id, target] of [
+    ["7", "8"],
+    ["8", "9"],
+    ["9", "7"],
+  ]) {
+    const field = id === "9" ? "origin" : "supersedes";
+    const body = base
+      .replace("srs-000007", "srs-00000" + id)
+      .replace("status: draft", "status: draft\n" + field + ":\n  - srs-00000" + target);
+    await write(root, id === "7" ? file : file.replace("export", id), body);
+  }
+  assert.equal(run(["validate"], root).status, 0);
+  await edit(root, file.replace("export", "9"), (s) => s.replace("origin:", "supersedes:"));
+  const result = run(["validate"], root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /\[relation-cycle\].*supersedes/);
+  for (const id of ["srs-000007", "srs-000008", "srs-000009"]) {
+    assert.ok(result.stderr.includes(id), result.stderr);
+  }
+});
+
+void test("verification coverage reports only missing explicit ACs and takes revision from their V", async (t) => {
+  const root = await project(t);
+  const second = "change-000042/intent/AC-2",
+    first = second.replace("AC-2", "AC-1");
+  await edit(
+    root,
+    intentPath,
+    (s) => s + "\n### AC-2: Вторая выборка\n\n- Verification: Проверить выгрузку.\n",
+  );
+  await edit(root, planPath, (s) => s.replace("not_started", "in_progress"));
+  const journal = planPath.replace("plan.md", "journal.md");
+  const header =
+    '---\nid: change-000042/journal\ncreated: "2026-11-23"\nupdated: "2026-11-23"\n---\n';
+  const body =
+    "# Проверки\n\n## Current State\n\n## Significant Events\n\n## Verification and Result\n\n### Verification\n\n" +
+    "```yaml\nchecks:\n  - subject: Общая проверка\n    outcome: passed\n    revision: другая редакция\n    source: CI\n```\n\n" +
+    "#### V-1: Первая проверка\n\n- Verifies:\n  - [" +
+    first +
+    "]\n- Revision: рабочая копия\n";
+  await write(root, journal, header + body);
+  for (const [toml, enabled] of [
+    ['profile="lite"', false],
+    ['profile="strict"', true],
+    ['profile="lite"\nrequired_checks=["verification-coverage"]', true],
+  ] as const) {
+    await write(root, "viaferrata.toml", toml);
+    const result = run(["validate"], root);
+    assert.equal(result.status, 0, result.text);
+    assert.equal(result.stderr.includes("W_VERIFICATION_COVERAGE"), enabled);
+    assert.equal(result.stderr.includes(second), enabled);
+    assert(!result.stderr.includes(first));
+  }
+  const validate = async () => validateProject(await loadConfig(root));
+  const revisions = async () =>
+    (await validate()).incoming
+      .get(first)
+      ?.filter((edge) => edge.kind === "Verifies")
+      .map((edge) => edge.revision);
+  assert.deepEqual(await revisions(), ["рабочая копия"]);
+  await edit(root, journal, (s) => s.replace("- Revision: рабочая копия", "  - [" + second + "]"));
+  assert.deepEqual(await revisions(), [null]);
+  assert(!(await validate()).diagnostics.some((d) => d.code === "W_VERIFICATION_COVERAGE"));
+  await write(root, journal, header + body);
+  for (const state of ["blocked", "completed", "not_started", "cancelled"]) {
+    await edit(root, planPath, (s) => s.replace(/^execution: .+$/m, "execution: " + state));
+    assert(!(await validate()).diagnostics.some((d) => d.code === "W_VERIFICATION_COVERAGE"));
+  }
+});
+
+void test("typed links in an older form keep their identity in working and archived documents", async (t) => {
+  const root = await project(t);
+  await edit(root, intentPath, (s) => s.replace("## Acceptance Criteria", "## Criteria"));
+  await edit(root, planPath, (s) => s.replace("not_started", "cancelled"));
+  let directory = path.dirname(intentPath);
+  for (const archived of [false, true]) {
+    if (archived) {
+      const destination = directory.replace("/changes/", "/archive/changes/");
+      await fs.mkdir(path.dirname(path.join(root, destination)), { recursive: true });
+      await fs.rename(path.join(root, directory), path.join(root, destination));
+      directory = destination;
+    }
+    const file = directory + "/intent.md";
+    const validate = async () =>
+      (await validateProject(await loadConfig(root))).diagnostics.filter((d) => d.file === file);
+    const correct = await validate();
+    assert(!correct.some((d) => d.severity === "error"));
+    assert.equal(
+      correct.some((d) => d.code === "W_FORM"),
+      !archived,
+    );
+    await edit(root, file, (s) => s.replace("srs-000007/R-1", "change-000042/plan/P-1"));
+    const invalid = await validate();
+    assert(
+      invalid.some(
+        (d) =>
+          d.ruleId === "relation-type" &&
+          d.message.includes("intent/AC-1") &&
+          d.message.includes("plan/P-1"),
+      ),
+    );
+    await edit(root, file, (s) => s.replace("change-000042/plan/P-1", "srs-000007/R-1"));
+  }
+});

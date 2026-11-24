@@ -32,7 +32,7 @@ validate проверяет метаданные, ID, обязательные �
 Руководство форм: ${instructionFiles.templates}
 `;
 export const limitations =
-  "Не проверены: смысл и полная матрица отношений, покрытие тестами, scope по diff, согласование, evidence и завершение. Полная поддержка lite/strict отсутствует.";
+  "Не проверены: смысл отношений, покрытие тестами, scope по diff, согласование, evidence и завершение. Полная поддержка lite/strict отсутствует.";
 
 export function initReport(result: InitResult): string {
   const { config, files, instructions } = result;
@@ -63,7 +63,7 @@ export function validationReport(config: Config, result: ValidationResult): stri
   );
 
   lines.push(
-    "Охват: YAML/метаданные, ID/размещение, дельты и ссылки; текущая форма вне архива. Архив индексируется без проверки полноты актуальной формы. Историческая идентичность не доказывает редакцию требования.",
+    "Охват: YAML/метаданные, ID/размещение, дельты, ссылки, типы отношений и циклы Depends on и supersedes; текущая форма вне архива. Архив индексируется без проверки полноты актуальной формы. Историческая идентичность не доказывает редакцию требования.",
   );
 
   lines.push(
@@ -81,6 +81,12 @@ export function validationReport(config: Config, result: ValidationResult): stri
   if (config.enabledRules.has(coverageRules.planRequirementCoverage.id)) {
     lines.push(
       `Включено правило ${coverageRules.planRequirementCoverage.id}: связи шагов Plan с требованиями рабочих deep-комплектов.`,
+    );
+  }
+
+  if (config.enabledRules.has(coverageRules.verificationCoverage.id)) {
+    lines.push(
+      `Включено правило ${coverageRules.verificationCoverage.id}: явные Verifies для AC при execution in_progress.`,
     );
   }
 

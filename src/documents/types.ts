@@ -38,6 +38,7 @@ export interface Reference {
   readonly value: string;
   readonly offset: number;
   readonly key?: string;
+  readonly owner?: string;
 }
 
 export interface DocumentMetadata {
@@ -57,7 +58,7 @@ export interface RequirementDelta {
 }
 
 export interface DocumentBody {
-  readonly covers?: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly revisions?: ReadonlyMap<string, string>;
   readonly deltas?: readonly RequirementDelta[];
   readonly locals: ReadonlySet<string>;
   readonly references: readonly Reference[];

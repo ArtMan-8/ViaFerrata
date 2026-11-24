@@ -8,6 +8,7 @@ import { buildDocumentIndex, validateBundles } from "../documents/index.ts";
 import { parseDocumentBody } from "../documents/markdown.ts";
 import { parseDocumentMetadata } from "../documents/metadata.ts";
 import { validateReferences } from "../documents/references.ts";
+import { indexRelations, type IncomingRelation } from "../documents/relations.ts";
 import type { ParsedDocument, DocumentIndex } from "../documents/types.ts";
 import { archiveRules } from "../rules/archive.ts";
 import { coverageRules } from "../rules/coverage.ts";
@@ -16,6 +17,7 @@ import { identityRules } from "../rules/identity.ts";
 export interface ValidationResult {
   documents: ParsedDocument[];
   index: DocumentIndex<ParsedDocument>;
+  incoming: Incoming;
   diagnostics: Diagnostic[];
 }
 
@@ -64,37 +66,76 @@ function validateArchiveChanges(
   return diagnostics;
 }
 
-function validatePlanCoverage(index: DocumentIndex<ParsedDocument>): Diagnostic[] {
+type Incoming = ReadonlyMap<string, readonly IncomingRelation[]>;
+
+function validatePlanCoverage(
+  index: DocumentIndex<ParsedDocument>,
+  incoming: Incoming,
+): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const [change, bundle] of index.bundles) {
     const plan = bundle.get("plan"),
-      spec = bundle.get("spec"),
-      intent = bundle.get("intent");
+      spec = bundle.get("spec");
     if (!plan?.body || !spec?.body || plan.archived || spec.archived) {
       continue;
     }
 
-    const targets = new Set<string>();
-    for (const edges of plan.body.covers?.values() ?? []) {
-      for (const target of edges) {
-        targets.add(target);
-        const prefix = change + "/intent/";
-        if (target.startsWith(prefix)) {
-          for (const requirement of intent?.body?.covers?.get(target.slice(prefix.length)) ?? []) {
-            targets.add(requirement);
-          }
-        }
-      }
-    }
-
+    // The typed Covers matrix bounds recursion to R ← AC ← S ← P.
+    const covered = (target: string): boolean =>
+      (incoming.get(target) ?? []).some(
+        (edge) =>
+          edge.kind === "Covers" &&
+          edge.source.startsWith(change + "/") &&
+          (edge.source.startsWith(change + "/plan/P-") || covered(edge.source)),
+      );
     for (const local of spec.body.locals) {
       const id = change + "/spec/" + local;
-      if (local.startsWith("R-") && !targets.has(id)) {
+      if (local.startsWith("R-") && !covered(id)) {
         diagnostics.push(
           diagnostic(
             plan.file,
             coverageRules.planRequirementCoverage,
-            `Нет шага Plan для ${id}; добавьте Covers на требование или покрывающий его AC этой задачи.`,
+            `Нет шага Plan для ${id}; добавьте Covers на требование или покрывающий его AC или сценарий этой задачи.`,
+          ),
+        );
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
+function validateVerificationCoverage(
+  index: DocumentIndex<ParsedDocument>,
+  incoming: Incoming,
+): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const bundle of index.bundles.values()) {
+    const plan = bundle.get("plan");
+    const intent = bundle.get("intent");
+    if (
+      plan?.archived ||
+      plan?.metadata?.fields.execution !== "in_progress" ||
+      !intent?.body ||
+      intent.archived
+    ) {
+      continue;
+    }
+
+    const journal = plan.metadata.identity.change + "/journal/V-";
+    for (const local of intent.body.locals) {
+      const target = intent.metadata.identity.id + "/" + local;
+      if (
+        local.startsWith("AC-") &&
+        !incoming
+          .get(target)
+          ?.some((edge) => edge.kind === "Verifies" && edge.source.startsWith(journal))
+      ) {
+        diagnostics.push(
+          diagnostic(
+            intent.file,
+            coverageRules.verificationCoverage,
+            `Для ${target} пока нет прямой ссылки Verifies из Journal.`,
           ),
         );
       }
@@ -179,19 +220,25 @@ export async function validateProject(config: Config): Promise<ValidationResult>
   }
 
   const indexed = buildDocumentIndex(documents, discovered.value.changeDirectories);
+  const relations = indexRelations(documents);
   diagnostics.push(
     ...indexed.diagnostics,
     ...validateBundles(indexed.value, path.relative(config.root, config.directories.changes)),
     ...validateReferences(documents, indexed.value),
+    ...relations.diagnostics,
+    ...(config.enabledRules.has(coverageRules.verificationCoverage.id)
+      ? validateVerificationCoverage(indexed.value, relations.incoming)
+      : []),
     ...validateArchiveChanges(documents, indexed.value),
     ...(config.enabledRules.has(coverageRules.planRequirementCoverage.id)
-      ? validatePlanCoverage(indexed.value)
+      ? validatePlanCoverage(indexed.value, relations.incoming)
       : []),
   );
 
   return {
     documents,
     index: indexed.value,
+    incoming: relations.incoming,
     diagnostics: sortDiagnostics(diagnostics),
   };
 }

@@ -100,11 +100,12 @@ export function parseDocumentBody(
   let section = "";
   let subsection = "";
   let wave: Wave | null = null;
-  const covers = new Map<string, Set<string>>();
-  const coverFields: { owner: string; start: number; end: number }[] = [];
-  let currentAC: string | null = null;
-  let stepEnd = -1;
-  let currentStep: string | null = null;
+  const revisions = new Map<string, string>();
+  const relationTargets = new Map<number, { key: string; owner: string }>();
+  const containers: LocatedNode[] = [];
+  let headingOwner: string | null = null;
+  let step: LocatedNode | null = null;
+  let stepId: string | null = null;
   const waves: Wave[] = [];
   const ac: { node: Heading & { position: SourcePosition }; id: string }[] = [];
   function declare(id: string, node: LocatedNode, group: LocalType) {
@@ -131,9 +132,9 @@ export function parseDocumentBody(
     const offset = node.position.start.offset;
     if (node.type === "heading") {
       const title = plain(node);
-      if (node.depth <= 3) {
-        currentAC = null;
-        currentStep = null;
+      if (node.depth <= 3 || (headingOwner?.startsWith("V-") && node.depth === 4)) {
+        headingOwner = null;
+        step = null;
       }
 
       if (node.depth === 2) {
@@ -175,11 +176,15 @@ export function parseDocumentBody(
         );
       }
 
+      if (
+        localTypes[documentType].includes(group) &&
+        (group !== "V" || subsection === "Verification")
+      ) {
+        headingOwner = id;
+      }
+
       if (group === "AC") {
         ac.push({ node, id });
-        if (section === "Acceptance Criteria") {
-          currentAC = id;
-        }
       }
 
       if (group === "W") {
@@ -190,32 +195,42 @@ export function parseDocumentBody(
 
     if (node.type === "listItem") {
       const firstLine = source.slice(offset, node.position.end.offset).split(/\r?\n/)[0];
-      if (/^- Covers:\s*$/.test(firstLine)) {
-        const owner =
-          documentType === "intent"
-            ? currentAC
-            : currentStep && offset < stepEnd
-              ? currentStep
-              : null;
+      while (containers.length && containers.at(-1)!.position.end.offset <= offset) {
+        containers.pop();
+      }
+      const parent = containers.at(-1);
+      containers.push(node);
+      const owner = parent && parent === step ? stepId : !parent ? headingOwner : null;
+      if (!parent && headingOwner?.startsWith("V-") && firstLine.startsWith("- Revision:")) {
+        const revision = plain(node).slice("Revision:".length).trim();
+        if (revision) {
+          revisions.set(headingOwner, revision);
+        }
+      }
 
-        if (owner) {
-          const parent = events
-            .filter(
-              (n) =>
-                n.type === "listItem" &&
-                n.position.start.offset < offset &&
-                n.position.end.offset >= node.position.end.offset,
-            )
-            .at(-1);
+      const field = /^- (Covers|Verifies|Depends on):\s*$/.exec(firstLine);
+      if (field && (owner || !parent)) {
+        for (const child of node.children) {
+          if (child.type !== "list") {
+            continue;
+          }
 
-          if (
-            documentType === "intent"
-              ? !parent
-              : parent &&
-                parent.position.end.offset === stepEnd &&
-                /^- \[[ x]\] P-/.test(source.slice(parent.position.start.offset))
-          ) {
-            coverFields.push({ owner, start: offset, end: node.position.end.offset });
+          for (const item of child.children) {
+            const paragraph = item.children[0];
+            const target =
+              paragraph?.type === "paragraph" && paragraph.children.length === 1
+                ? paragraph.children[0]
+                : undefined;
+            const start = target?.position?.start.offset;
+            const end = target?.position?.end.offset;
+            if (
+              target?.type === "text" &&
+              start !== undefined &&
+              end !== undefined &&
+              /^\[(?:change|srs|adr|research)-[^\]\r\n]+\]$/.test(source.slice(start, end))
+            ) {
+              relationTargets.set(start, { key: field[1], owner: owner ?? "" });
+            }
           }
         }
       }
@@ -239,8 +254,8 @@ export function parseDocumentBody(
           } else {
             wave.count++;
             if (documentType === "plan" && section === "Steps") {
-              currentStep = m[1];
-              stepEnd = node.position.end.offset;
+              stepId = m[1];
+              step = node;
             }
           }
         }
@@ -339,17 +354,6 @@ export function parseDocumentBody(
     }
   }
 
-  for (const field of coverFields) {
-    const targets = covers.get(field.owner) ?? new Set<string>();
-    for (const ref of references) {
-      if (ref.offset > field.start && ref.offset < field.end) {
-        targets.add(ref.value);
-      }
-    }
-
-    covers.set(field.owner, targets);
-  }
-
   const deltas =
     documentType === "spec"
       ? readRequirementDeltas(input, sectionNodes)
@@ -358,8 +362,11 @@ export function parseDocumentBody(
   return {
     value: {
       locals,
-      references: [...references, ...deltas.references],
-      covers,
+      references: [
+        ...references.map((ref) => ({ ...ref, ...relationTargets.get(ref.offset) })),
+        ...deltas.references,
+      ],
+      revisions,
       deltas: deltas.value,
     },
     diagnostics: [...diagnostics.items, ...deltas.diagnostics],

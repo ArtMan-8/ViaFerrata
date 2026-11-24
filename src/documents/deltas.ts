@@ -121,7 +121,7 @@ function readRequirementDelta(
   const target = stringField("changes");
   const targetOffset = offset("changes");
   if (target && targetCount === 1) {
-    references.push({ value: target, offset: targetOffset, key: "Changes" });
+    references.push({ value: target, offset: targetOffset, key: "Changes", owner: local });
   }
 
   const before = stringField("before", operation === "add");
