@@ -4,8 +4,10 @@ import fs from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 
+import { stringify } from "smol-toml";
+
 import { findProjectRoot } from "../cli/project.ts";
-import { parseConfig, type Config } from "../config.ts";
+import { documentsRootSetting, parseConfig, type Config } from "../config.ts";
 import { CommandError, errorCode, errorMessage, isFileError } from "../diagnostics.ts";
 import { checkPath, writeAndClose } from "../filesystem.ts";
 import { instructionFiles, type InstructionFiles } from "../resources.ts";
@@ -196,9 +198,10 @@ export async function initProject(
   rootArgument: string,
   profile?: Config["profile"],
   {
+    documentsRoot,
     io = fs,
     instructions = instructionFiles,
-  }: { io?: InitIO; instructions?: InstructionFiles } = {},
+  }: { documentsRoot?: string; io?: InitIO; instructions?: InstructionFiles } = {},
 ): Promise<InitResult> {
   const root = path.resolve(rootArgument);
   const completed: string[] = [];
@@ -248,17 +251,32 @@ export async function initProject(
     if (!existing && !profile) {
       throw new CommandError(
         "E_CONFIG",
-        "Для новой конфигурации явно выберите профиль: init --profile lite либо strict.",
+        "Выберите профиль: vf init --profile lite включает базовые проверки документов. vf init --profile strict дополнительно проверяет покрытие требований шагами Plan и критериев приёмки записями Journal в deep-задачах.",
         currentFile,
       );
     }
 
-    const configBytes = existing?.bytes ?? Buffer.from(`profile = "${profile}"\n`);
+    const selectedRoot =
+      documentsRoot === undefined ? undefined : documentsRootSetting(documentsRoot, currentFile);
+    const configBytes =
+      existing?.bytes ?? Buffer.from(stringify({ profile, documents_root: selectedRoot }));
+
     const config = parseConfig(root, decode(configBytes, currentFile));
     if (profile && profile !== config.profile) {
       throw new CommandError(
         "E_CONFIG",
         "--profile не совпадает с конфигурацией; используйте существующий профиль, init его не меняет.",
+        currentFile,
+      );
+    }
+
+    if (
+      selectedRoot !== undefined &&
+      path.resolve(root, selectedRoot) !== path.resolve(config.documentsRoot)
+    ) {
+      throw new CommandError(
+        "E_CONFIG",
+        "--documents-root не совпадает с настройкой проекта. Проверьте viaferrata.toml и повторите init с настроенным корнем или без флага.",
         currentFile,
       );
     }

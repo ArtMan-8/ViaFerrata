@@ -50,6 +50,25 @@ void test(
     }
     const { install, names, tarball } = prepared;
     const executable = await verifyInstallation(install, temp, names);
+    const custom = path.join(temp, "custom");
+    await fs.mkdir(custom);
+    command(
+      executable,
+      ["init", custom, "--profile", "strict", "--documents-root", "project/docs"],
+      temp,
+    );
+    const customFiles = await snapshot(custom);
+    command(executable, ["init", custom, "--documents-root=project//docs/"], temp);
+    assert.deepEqual(await snapshot(custom), customFiles);
+    for (const rejected of ["other", "../outside"]) {
+      const result = run(["init", custom, "--documents-root", rejected], temp, executable);
+      assert.equal(result.status, 2, result.text);
+      assert.match(result.stderr, /E_CONFIG/);
+      assert.deepEqual(await snapshot(custom), customFiles);
+    }
+    command(executable, ["new", "Custom root"], custom);
+    await fs.access(path.join(custom, "project/docs/changes/change-000001/plan.md"));
+
     const target = path.join(temp, "consumer");
     await write(target, "notes.txt", "Ручной текст проекта\n");
     await write(target, "README.md", "Описание проекта\n");

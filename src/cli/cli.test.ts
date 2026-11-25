@@ -98,7 +98,6 @@ for (const [name, config, expected] of [
   ["parent escape", 'profile = "lite"\ndocuments_root = "../other"', "E_CONFIG"],
   ["absolute root", 'profile = "lite"\ndocuments_root = "/tmp"', "E_CONFIG"],
   ["temporary root", 'profile = "lite"\ndocuments_root = ".viaferrata"', "E_CONFIG"],
-  ["protected paths", 'profile = "lite"\nprotected_paths = ["vendor/**"]', "known-config-keys"],
   ["required checks", 'profile = "lite"\nrequired_checks = ["unit"]', "E_CONFIG"],
 ]) {
   void test(`config: ${name} stops new before writing`, async (t) => {

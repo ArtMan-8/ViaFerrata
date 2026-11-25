@@ -11,7 +11,7 @@ export const help = `ViaFerrata — подключение проекта, со�
 
 vf --help
 vf --version
-vf init [path] [--profile lite|strict]
+vf init [path] [--profile lite|strict] [--documents-root <path>]
 vf new "Название задачи"
 vf validate
 vf summary change-NNNNNN
@@ -23,7 +23,7 @@ new/validate ищут ближайший viaferrata.toml вверх от cwd; н
 scope сверяет пути Git с согласованным scope; --digest выводит сумму масок рабочей Spec.
 summary читает Journal по ID в подключённом проекте либо один отчёт YAML/JSON из stdin.
 init использует path либо cwd; первое подключение внутри другого проекта запрещено.
---profile допускается до и после init, значение — через пробел или =; повторы запрещены.
+Опции --profile и --documents-root допускаются до и после init, значение — через пробел или =; повторы запрещены.
 --help и --version используются самостоятельно, без команды и других опций.
 init подключает существующий каталог; для новой конфигурации обязателен --profile.
 new создаёт три draft-документа по библиотечным формам с optional-подсказками.
@@ -44,7 +44,7 @@ export function initReport(result: InitResult): string {
     ...files.map(({ file, action }) => `${file}: ${action}`),
     `Инструкции: ${instructions.workflow}`,
     `Руководство форм: ${instructions.templates}`,
-    "Подключение подготовлено. Откройте AGENTS.md и передайте агенту цель задачи.",
+    "Подключение подготовлено. Откройте проект с агентом и опишите задачу: что хотите изменить и по чему поймёте, что готово.",
     "Правило .gitignore исключает неотслеживаемую .viaferrata/; ранее tracked данные требуют отдельного решения.",
     "Подключение не подтверждает согласование или завершение задачи. Полная поддержка lite/strict отсутствует.",
   ].join("\n");

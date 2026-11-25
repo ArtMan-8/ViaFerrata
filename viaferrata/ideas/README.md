@@ -10,6 +10,5 @@
 
 - [Автоматическое ревью и заметки](automatic-review-notes.md).
 - [CLI, skills и агенты](cli-skills-agents.md).
-- [Проверки документов](document-checks.md).
 - [Версии формата документов и миграция](document-format-evolution.md).
 - [Автоматизация выпуска](release-automation.md).

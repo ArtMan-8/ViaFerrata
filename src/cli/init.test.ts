@@ -4,6 +4,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
+import { parse } from "smol-toml";
+
 import { instructionFiles } from "../resources.ts";
 import { temporary, write, run, snapshot } from "../tests/helpers.ts";
 
@@ -46,6 +48,38 @@ void test("init creates exactly three files and preserves bytes and mtime on rep
     assert(run(["--help"], root).stdout.includes(file));
     assert((await fs.readFile(file)).length > 0);
   }
+});
+
+void test("init uses the selected document root and detects conflicts before writes", async (t) => {
+  const root = await temporary(t);
+  const selected = 'process docs//"team"/';
+  const before = await snapshot(root);
+  const missing = run(["init"], root);
+  assert.equal(missing.status, 2, missing.text);
+  assert.match(missing.stderr, /lite.*базовые/);
+  assert.match(missing.stderr, /strict.*покрытие/);
+  assert.deepEqual(await snapshot(root), before);
+
+  const first = run([`--documents-root=${selected}`, ...init], root);
+  assert.equal(first.status, 0, first.text);
+  const config = await fs.readFile(path.join(root, "viaferrata.toml"), "utf8");
+  assert.equal(parse(config).documents_root, selected);
+  const ready = await snapshot(root);
+  const repeat = run(["init", "--documents-root", 'process docs/"team"'], root);
+  assert.equal(repeat.status, 0, repeat.text);
+  assert.deepEqual(await snapshot(root), ready);
+
+  for (const value of ["elsewhere", "../other", "  ", "x/../y", "/outside", "node_modules/docs"]) {
+    const failed = run(["init", "--documents-root", value], root);
+    assert.equal(failed.status, 2, failed.text);
+    assert.match(failed.stderr, /E_CONFIG/);
+    assert.deepEqual(await snapshot(root), ready);
+  }
+  assert.equal(run(["new", "Первая задача"], root).status, 0);
+  await fs.access(path.join(root, selected, "changes/change-000001/intent.md"));
+  const draft = run(["validate"], root);
+  assert.equal(draft.status, 1, draft.text);
+  assert.match(draft.stderr, /E_DRAFT_PLACEHOLDER/);
 });
 
 void test("init accepts relative and absolute paths and rejects first nested connection before writes", async (t) => {
@@ -92,7 +126,9 @@ for (const args of [
   ["init", "--profile", "lite", "--profile", "lite"],
   ["init", "--root", "."],
   ["--root", ".", "--root", ".", ...init],
-  ["init", "--documents-root", "docs"],
+  ["init", "--documents-root"],
+  ["init", "--documents-root=a", "--documents-root", "a"],
+  ["--documents-root", "a", "validate"],
 ]) {
   void test(`init rejects arguments ${args.join(" ")}`, async (t) => {
     const root = await temporary(t);
@@ -133,8 +169,6 @@ for (const [body, code, args] of [
   ['profile = "lite"\nprofile = "strict"\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\nunknown = true\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\nrequired_checks = ["npm test"]\n', "E_CONFIG", ["init"]],
-  ['profile = "lite"\nprotected_paths = []\n', "known-config-keys", ["init"]],
-  ['profile = "lite"\nprotected_paths = ["src/**"]\n', "known-config-keys", ["init"]],
   ['profile = "lite"\ndocuments_root = "../outside"\n', "E_CONFIG", ["init"]],
   ['profile = "lite"\ndocuments_root = "  "\n', "E_CONFIG", ["init"]],
 ] as const) {

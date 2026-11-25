@@ -10,7 +10,7 @@ export type Arguments =
   | { command: "validate" }
   | { command: "scope"; change: string; digest: boolean }
   | { command: "summary"; change: string | null }
-  | { command: "init"; path?: string; profile?: "lite" | "strict" }
+  | { command: "init"; path?: string; documentsRoot?: string; profile?: "lite" | "strict" }
   | { command: "new"; title: string };
 
 export function argumentsFor(argv: string[]): Arguments {
@@ -25,6 +25,7 @@ export function argumentsFor(argv: string[]): Arguments {
         help: { type: "boolean" },
         version: { type: "boolean" },
         profile: { type: "string" },
+        "documents-root": { type: "string" },
         digest: { type: "boolean" },
         stdin: { type: "boolean" },
       },
@@ -67,7 +68,8 @@ export function argumentsFor(argv: string[]): Arguments {
     return { command: "help" };
   }
 
-  if (values.profile !== undefined && command !== "init") {
+  const documentsRoot = values["documents-root"];
+  if ((values.profile !== undefined || documentsRoot !== undefined) && command !== "init") {
     throw usage();
   }
 
@@ -122,7 +124,7 @@ export function argumentsFor(argv: string[]): Arguments {
       throw usage();
     }
 
-    return { command, path: argument, profile: values.profile };
+    return { command, path: argument, profile: values.profile, documentsRoot };
   }
 
   if (

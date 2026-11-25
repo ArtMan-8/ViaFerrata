@@ -86,7 +86,10 @@ export async function main(
 
     if (args.command === "init") {
       root = path.resolve(root, args.path ?? ".");
-      output.log(initReport(await initProject(root, args.profile)));
+      output.log(
+        initReport(await initProject(root, args.profile, { documentsRoot: args.documentsRoot })),
+      );
+
       return 0;
     }
 
