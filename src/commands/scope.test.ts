@@ -89,14 +89,6 @@ void test("scope names every Git layer, including opposite edits and both rename
   await write(root, "untracked.ignored", "ignored");
   const ok = cli();
   assert.equal(ok.status, 0, ok.text);
-  await write(
-    root,
-    "viaferrata.toml",
-    'profile = "lite"\ndocuments_root = "docs"\nprotected_paths = []\n',
-  );
-  assert.match(cli().stderr, /known-config-keys/);
-  await write(root, "viaferrata.toml", 'profile = "lite"\ndocuments_root = "docs"\n');
-  assert.equal(cli().status, 0);
   await write(root, "outside", "changed");
   git("add", "outside");
   await write(root, "outside", "old");

@@ -10,7 +10,12 @@ void test("parser accepts init options in any position and both value forms", ()
     ["--profile=lite", "init", "project"],
     ["init", "--profile", "lite", "project"],
   ]) {
-    assert.deepEqual(argumentsFor(args), { command: "init", path: "project", profile: "lite" });
+    assert.deepEqual(argumentsFor(args), {
+      command: "init",
+      path: "project",
+      profile: "lite",
+      documentsRoot: undefined,
+    });
   }
   assert.deepEqual(argumentsFor(["new", "Название"]), { command: "new", title: "Название" });
   assert.deepEqual(argumentsFor(["validate"]), { command: "validate" });

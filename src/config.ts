@@ -80,7 +80,29 @@ export async function loadConfig(rootArgument = process.cwd()): Promise<Config> 
   return config;
 }
 
+export function documentsRootSetting(value: unknown, file: string): string {
+  const relative = value ?? "viaferrata";
+  if (
+    typeof relative !== "string" ||
+    !relative.trim() ||
+    path.isAbsolute(relative) ||
+    // Control characters are forbidden in a documents_root path.
+    // oxlint-disable-next-line no-control-regex
+    /[\\*?[\]{}\x00-\x1f]/.test(relative) ||
+    relative.split("/").some((p) => [".", "..", ".git", ".viaferrata", "node_modules"].includes(p))
+  ) {
+    throw new CommandError(
+      configRules.validDocumentsRoot,
+      "documents_root должен быть непустым относительным путём, не состоящим только из пробелов, без glob, служебных каталогов и . или ..; исправьте путь.",
+      file,
+    );
+  }
+
+  return relative;
+}
+
 const configFields = {
+  documents_root: documentsRootSetting,
   profile(value: unknown, file: string): Config["profile"] {
     if (value !== "lite" && value !== "strict") {
       throw new CommandError(
@@ -91,28 +113,6 @@ const configFields = {
     }
 
     return value;
-  },
-  documents_root(value: unknown, file: string): string {
-    const relative = value ?? "viaferrata";
-    if (
-      typeof relative !== "string" ||
-      !relative.trim() ||
-      path.isAbsolute(relative) ||
-      // Control characters are forbidden in a documents_root path.
-      // oxlint-disable-next-line no-control-regex
-      /[\\*?[\]{}\x00-\x1f]/.test(relative) ||
-      relative
-        .split("/")
-        .some((p) => [".", "..", ".git", ".viaferrata", "node_modules"].includes(p))
-    ) {
-      throw new CommandError(
-        configRules.validDocumentsRoot,
-        "documents_root должен быть непустым относительным путём, не состоящим только из пробелов, без glob, служебных каталогов и . или ..; исправьте путь.",
-        file,
-      );
-    }
-
-    return relative;
   },
   required_checks(value: unknown, file: string) {
     return stringList(value, "required_checks", file, configRules.validRequiredChecks).map((id) => {
