@@ -17,7 +17,11 @@ void test("parser accepts init options in any position and both value forms", ()
       documentsRoot: undefined,
     });
   }
-  assert.deepEqual(argumentsFor(["new", "Название"]), { command: "new", title: "Название" });
+  assert.deepEqual(argumentsFor(["new", "change", "Название"]), {
+    command: "new",
+    type: "change",
+    title: "Название",
+  });
   assert.deepEqual(argumentsFor(["validate"]), { command: "validate" });
 });
 
@@ -25,22 +29,45 @@ void test("parser rejects repeated, unknown, misplaced and invalid options and p
   for (const args of [
     ["--help", "--help"],
     ["--version", "--version"],
-    ["init", "--profile=lite", "--profile", "lite"],
-    ["--profile=lite", "validate"],
-    ["--profile=strict", "new", "title"],
-    ["--root", ".", "validate"],
-    ["init", "--profile"],
-    ["init", "--profile=other"],
-    ["init", "one", "two"],
-    ["new", ""],
-    ["new", "a\nb"],
-    ["title", "new"],
-    ["validate", "extra"],
     ["--help", "--version"],
+    ["--version", "extra"],
+    ["inut"],
+    ["--oops"],
+    ["title", "new"],
+    ["--root", ".", "validate"],
+    ["--profile", "init", "unknown"],
+    ["constructor"],
   ]) {
     assert.throws(
       () => argumentsFor(args),
-      (error) => error instanceof CommandError && error.code === "E_USAGE",
+      { code: "E_CLI_SYNTAX", message: /vf --help/ },
+      args.join(" "),
+    );
+  }
+  for (const [args, hint] of [
+    [["init", "--profile=lite", "--profile", "lite"], "vf init"],
+    [["init", "--profle", "lite"], "vf init"],
+    [["--profile=lite", "init", "--oops"], "vf init"],
+    [["--profile=lite", "validate"], "vf validate"],
+    [["--profile=strict", "new", "change", "title"], 'vf new change "Название"'],
+    [["init", "--profile"], "vf init"],
+    [["init", "--profile=other"], "vf init"],
+    [["init", "one", "two"], "vf init"],
+    [["new", "change", ""], 'vf new change "Название"'],
+    [["new", "change", "a\nb"], 'vf new change "Название"'],
+    [["new", "srs"], 'vf new srs "Название"'],
+    [["new", "other"], 'vf new research "Название"'],
+    [["validate", "extra"], "vf validate"],
+    [["summary"], "vf summary --stdin"],
+    [["scope"], "vf scope change-NNNNNN"],
+    [["complete", "bad"], "vf complete change-NNNNNN"],
+  ] as [string[], string][]) {
+    assert.throws(
+      () => argumentsFor(args),
+      (error) =>
+        error instanceof CommandError &&
+        error.code === "E_CLI_COMMAND_USAGE" &&
+        error.message.includes(hint),
       args.join(" "),
     );
   }

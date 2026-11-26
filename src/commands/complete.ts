@@ -7,19 +7,21 @@ import { promisify } from "node:util";
 import { isScalar, parseDocument } from "yaml";
 
 import { parseConfig, type Config } from "../config.ts";
-import { CommandError, errorMessage, formatDiagnostic, type Diagnostic } from "../diagnostics.ts";
+import {
+  CommandError,
+  errorCode,
+  errorMessage,
+  isFileError,
+  type Diagnostic,
+} from "../diagnostics.ts";
 import { plain, topLevelMarkdownNodes } from "../documents/markdown-nodes.ts";
-import { addressIdentity } from "../documents/schema.ts";
+import { addressIdentity, executions, statuses } from "../documents/schema.ts";
 import type { ParsedDocument } from "../documents/types.ts";
 import { markdownSections, parseYamlFence } from "../documents/yaml-blocks.ts";
 import { checkPath, writeAndClose } from "../filesystem.ts";
 import { checkScope } from "./scope.ts";
 import { journalReport } from "./summary.ts";
 import { validateProject, type ValidationResult } from "./validate.ts";
-
-function fail(message: string, file: string): never {
-  throw new CommandError("E_FIELD", message, file);
-}
 
 function mapping(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -44,17 +46,32 @@ function sectionFields(doc: ParsedDocument, sectionName: string) {
     for (const block of blocks) {
       const { document, closed } = parseYamlFence(block, source, "markdown");
       if (!closed || document.errors.length || document.warnings.length) {
-        fail("Некорректный YAML в " + section, doc.file);
+        throw new CommandError(
+          "E_YAML",
+          `Некорректный YAML в ${section}: ${document.errors[0]?.message ?? document.warnings[0]?.message ?? "блок не закрыт"}`,
+          doc.file,
+        );
       }
 
-      const values: unknown = document.toJS();
+      let values: unknown;
+      try {
+        values = document.toJS();
+      } catch (error) {
+        throw new CommandError(
+          "E_YAML",
+          `Некорректный YAML в ${section}: ${errorMessage(error)}`,
+          doc.file,
+          { cause: error },
+        );
+      }
+
       if (!mapping(values)) {
         continue;
       }
 
       for (const [key, value] of Object.entries(values)) {
         if (fields.has(key)) {
-          fail("Повтор поля " + key, doc.file);
+          throw new CommandError("E_FIELD", "Повтор поля " + key, doc.file);
         }
 
         fields.set(key, value);
@@ -125,20 +142,27 @@ function relevantFiles(project: ValidationResult, change: string) {
 async function checkPolicy(config: Config, journal: ParsedDocument, checks: string[]) {
   const events = sectionFields(journal, "Significant Events");
   const digest = createHash("sha256").update(JSON.stringify(checks.toSorted())).digest("hex");
-  if (events.get("completion_digest") !== digest) {
-    fail(
+  const recordedDigest = events.get("completion_digest");
+  if (!string(recordedDigest) || !/^[a-f0-9]{64}$/.test(recordedDigest)) {
+    throw new CommandError("E_FIELD", "Требуется SHA-256 в completion_digest.", journal.file);
+  }
+
+  if (recordedDigest !== digest) {
+    throw new CommandError(
+      "E_COMPLETION_BLOCKED",
       "Сверьте согласованный перечень completion_checks и completion_digest. Сумма текущего перечня: " +
         digest,
       journal.file,
     );
   }
+
   const scope = events.get("scope_check");
   if (
     !mapping(scope) ||
     !string(scope.base) ||
     !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(scope.base)
   ) {
-    fail("Требуется scope_check.base.", journal.file);
+    throw new CommandError("E_FIELD", "Требуется scope_check.base.", journal.file);
   }
 
   let raw: string;
@@ -158,12 +182,20 @@ async function checkPolicy(config: Config, journal: ParsedDocument, checks: stri
 
   const original = parseConfig(config.root, raw);
   if (original.profile === "strict" && config.profile !== "strict") {
-    fail("Исходный профиль strict ослаблен.", "viaferrata.toml");
+    throw new CommandError(
+      "E_COMPLETION_BLOCKED",
+      "Исходный профиль strict ослаблен.",
+      "viaferrata.toml",
+    );
   }
 
   for (const rule of original.enabledRules) {
     if (!config.enabledRules.has(rule)) {
-      fail("Отключено исходное правило " + rule, "viaferrata.toml");
+      throw new CommandError(
+        "E_COMPLETION_BLOCKED",
+        "Отключено исходное правило " + rule,
+        "viaferrata.toml",
+      );
     }
   }
 }
@@ -178,9 +210,13 @@ function verifyReport(
   intent: ParsedDocument,
   coverage: boolean,
 ) {
-  const { checks: records } = journalReport(body(journal), journal.file);
+  const { checks: records } = journalReport(
+    journal.raw,
+    journal.file,
+    journal.metadata!.bodyOffset,
+  );
   if (!Array.isArray(records) || !records.every(mapping)) {
-    fail("Требуется список checks с результатами.", journal.file);
+    throw new CommandError("E_FIELD", "Требуется список checks с результатами.", journal.file);
   }
 
   for (const record of records) {
@@ -190,7 +226,11 @@ function verifyReport(
       !string(record.source) ||
       !(record.revision === null || string(record.revision))
     ) {
-      fail("Проверьте subject, outcome, source и revision записи checks.", journal.file);
+      throw new CommandError(
+        "E_FIELD",
+        "Проверьте subject, outcome, source и revision записи checks.",
+        journal.file,
+      );
     }
 
     if (
@@ -199,14 +239,19 @@ function verifyReport(
         !/^V-[1-9]\d*$/.test(record.verification) ||
         !journal.body?.locals.has(record.verification))
     ) {
-      fail("Неизвестный verification: " + JSON.stringify(record.verification), journal.file);
+      throw new CommandError(
+        "E_FIELD",
+        "Неизвестный verification: " + JSON.stringify(record.verification),
+        journal.file,
+      );
     }
   }
 
   for (const subject of checks) {
     const matches = records.filter((record) => record.subject === subject);
     if (matches.length !== 1 || !successful(matches[0])) {
-      fail(
+      throw new CommandError(
+        "E_COMPLETION_BLOCKED",
         "Для " + subject + " требуется один текущий результат passed с источником и редакцией.",
         journal.file,
       );
@@ -227,7 +272,7 @@ function verifyReport(
       (ref) => ref.key === "Verifies" && ref.value === target,
     );
     if (!verifications.length) {
-      fail("Нет Verifies для " + target, journal.file);
+      throw new CommandError("E_COMPLETION_BLOCKED", "Нет Verifies для " + target, journal.file);
     }
 
     const covered = verifications.some(({ owner }) => {
@@ -241,7 +286,11 @@ function verifyReport(
 
     if (!covered) {
       const ids = verifications.map((ref) => ref.owner).join(", ");
-      fail("Для " + target + " проверьте Revision и исход проверок: " + ids, journal.file);
+      throw new CommandError(
+        "E_COMPLETION_BLOCKED",
+        "Для " + target + " проверьте Revision и исход проверок: " + ids,
+        journal.file,
+      );
     }
   }
 }
@@ -253,22 +302,63 @@ async function writeCompleted(plan: ParsedDocument) {
     .replace(/\r?\n---[ \t]*(?:\r?\n)?$/, "");
   const node = parseDocument(header).get("execution", true);
   if (!isScalar(node) || !node.range || node.value !== "in_progress") {
-    fail("Проверьте поле execution.", plan.file);
+    throw new CommandError("E_FIELD", "Проверьте поле execution.", plan.file);
   }
 
   const next =
     plan.raw.slice(0, start + node.range[0]) + "completed" + plan.raw.slice(start + node.range[1]);
   const temp = path.join(path.dirname(plan.absolute), ".complete-" + randomUUID());
-  await checkPath(plan.absolute, false);
-  const handle = await fs.open(temp, "wx", (await fs.stat(plan.absolute)).mode);
+  let ownsTemp = false;
   try {
+    await checkPath(plan.absolute, false);
+    const handle = await fs.open(temp, "wx", (await fs.stat(plan.absolute)).mode);
+    ownsTemp = true;
     await writeAndClose(handle, () => handle.writeFile(next));
-    if (!(await fs.readFile(plan.absolute)).equals(Buffer.from(plan.raw))) {
-      fail("Plan изменился во время проверки. Повторите завершение.", plan.file);
+    const current = await fs.readFile(plan.absolute);
+    if (!current.equals(Buffer.from(plan.raw))) {
+      throw new CommandError(
+        "E_CONFLICT",
+        "Plan изменился во время проверки. Повторите завершение.",
+        plan.file,
+      );
     }
     await fs.rename(temp, plan.absolute);
-  } finally {
-    await fs.rm(temp, { force: true });
+  } catch (error) {
+    let failed = error;
+    if (isFileError(error)) {
+      const missingPlan =
+        errorCode(error) === "ENOENT" &&
+        error instanceof Error &&
+        "path" in error &&
+        error.path === plan.absolute;
+      failed = new CommandError(
+        missingPlan ? "E_CONFLICT" : "E_IO",
+        missingPlan
+          ? "Plan исчез во время проверки. Проверьте изменения."
+          : `Не удалось обновить Plan: ${errorMessage(error)}.`,
+        plan.file,
+        { cause: error },
+      );
+    }
+
+    if (ownsTemp) {
+      try {
+        await fs.rm(temp, { force: true });
+      } catch (cleanup) {
+        const cause = new AggregateError([failed, cleanup], "Ошибки обновления Plan и очистки");
+        if (!isFileError(cleanup) || !(failed instanceof CommandError)) {
+          throw cause;
+        }
+        throw new CommandError(
+          "E_IO",
+          `${failed.message} Не удалось удалить временный файл: ${errorMessage(cleanup)}.`,
+          temp,
+          { cause },
+        );
+      }
+    }
+
+    throw failed;
   }
 }
 
@@ -281,51 +371,102 @@ export async function completeChange(
   const bundle = project.index.bundles.get(change);
   const dir = path.relative(config.root, path.join(config.directories.changes, change));
   const files = relevantFiles(project, change);
+  const archiveDir = path.relative(
+    config.root,
+    path.join(config.documentsRoot, "archive", "changes", change),
+  );
   for (const item of project.diagnostics) {
     if (item.severity === "warning") {
       warn(item);
-    } else if (files.has(item.file) || item.file === dir || item.file.startsWith(dir + path.sep)) {
-      throw new CommandError(item.code, formatDiagnostic(item), item.file);
+    } else if (
+      files.has(item.file) ||
+      item.file === dir ||
+      item.file.startsWith(dir + path.sep) ||
+      (!bundle &&
+        (item.code === "E_IO" || item.code === "E_UNSUPPORTED") &&
+        (dir.startsWith(item.file + path.sep) ||
+          archiveDir.startsWith(item.file + path.sep) ||
+          archiveDir === item.file))
+    ) {
+      throw CommandError.fromDiagnostic(item);
     }
   }
   const plan = bundle?.get("plan"),
     intent = bundle?.get("intent"),
     spec = bundle?.get("spec"),
     journal = bundle?.get("journal");
-  if (!plan || plan.archived || !intent || !spec || !journal) {
-    fail("Требуется полный рабочий комплект.", dir);
+  if (!bundle) {
+    throw new CommandError("E_DOCUMENT_NOT_FOUND", "Комплект не найден. Проверьте ID.", dir);
+  }
+
+  if (plan?.archived) {
+    throw new CommandError(
+      "E_COMPLETION_BLOCKED",
+      "Завершать можно только рабочий комплект. Выбран архивный Plan.",
+      plan.file,
+    );
+  }
+
+  if (!plan || !intent || !spec) {
+    throw new CommandError("E_STRUCTURE", "Требуется полный рабочий комплект.", dir);
   }
 
   if (plan.metadata?.fields.execution === "completed") {
     return change + ": уже completed.";
   }
 
-  if (plan.metadata?.fields.execution !== "in_progress") {
-    fail("Для завершения требуется in_progress.", plan.file);
+  const execution = plan.metadata?.fields.execution;
+  if (execution !== "in_progress") {
+    throw new CommandError(
+      typeof execution === "string" && executions.includes(execution)
+        ? "E_COMPLETION_BLOCKED"
+        : "E_FIELD",
+      "Для завершения требуется in_progress.",
+      plan.file,
+    );
   }
 
   for (const doc of [plan, intent, spec]) {
-    if (doc.metadata?.fields.status !== "approved") {
-      fail("Требуется status approved.", doc.file);
+    const status = doc.metadata?.fields.status;
+    if (status !== "approved") {
+      throw new CommandError(
+        typeof status === "string" && statuses.includes(status)
+          ? "E_COMPLETION_BLOCKED"
+          : "E_FIELD",
+        "Требуется status approved.",
+        doc.file,
+      );
     }
   }
 
   if (!plan.body?.locals.size || ![...plan.body.locals].some((id) => id.startsWith("P-"))) {
-    fail("В Plan отсутствуют шаги.", plan.file);
+    throw new CommandError("E_COMPLETION_BLOCKED", "В Plan отсутствуют шаги.", plan.file);
   }
 
   if (plan.body.openSteps?.length) {
-    fail("Открытые шаги: " + plan.body.openSteps.join(", "), plan.file);
+    throw new CommandError(
+      "E_COMPLETION_BLOCKED",
+      "Открытые шаги: " + plan.body.openSteps.join(", "),
+      plan.file,
+    );
+  }
+
+  if (!journal) {
+    throw new CommandError(
+      "E_DOCUMENT_NOT_FOUND",
+      "Journal не найден. Проверьте комплект.",
+      path.join(dir, "journal.md"),
+    );
   }
 
   if (!hasResult(journal)) {
-    fail("Заполните Result в Journal.", journal.file);
+    throw new CommandError("E_COMPLETION_BLOCKED", "Заполните Result в Journal.", journal.file);
   }
 
   await checkScope(config, change, false);
   const checks = sectionFields(spec, "Definition of Done").get("completion_checks");
   if (!Array.isArray(checks) || !checks.every(string) || new Set(checks).size !== checks.length) {
-    fail("Требуется список уникальных completion_checks.", spec.file);
+    throw new CommandError("E_FIELD", "Требуется список уникальных completion_checks.", spec.file);
   }
 
   await checkPolicy(config, journal, checks);

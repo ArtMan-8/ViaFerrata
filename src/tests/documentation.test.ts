@@ -38,7 +38,10 @@ void test("repository documentation links resolve within this repository", async
 });
 
 void test("rule catalogue lists each public rule once", async () => {
-  const text = await fs.readFile(path.join(repo, "viaferrata/specs/built-in-checks.md"), "utf8");
+  const text = await fs.readFile(
+    path.join(repo, "viaferrata/specs/srs-000001-built-in-checks.md"),
+    "utf8",
+  );
   function checkCatalogue(markdown: string) {
     const rows = markdown
       .split("\n")

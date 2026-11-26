@@ -149,3 +149,19 @@ void test("scope rejects unsupported object types, conflicts and an unrelated ba
   await approve(digest, unrelated);
   assert.match(cli().stderr, /E_IO/);
 });
+
+void test("scope requires the addressed file and preserves the reason for invalid placement", async (t) => {
+  const root = await temporary(t);
+  await write(root, "viaferrata.toml", 'profile = "lite"\ndocuments_root = "docs"\n');
+  await fs.mkdir(path.join(root, directory), { recursive: true });
+  const invoke = (...args: string[]) => run(["scope", id, ...args], root);
+  const noSpec = invoke("--digest");
+  assert.equal(noSpec.status, 2);
+  assert.match(noSpec.stderr, /spec\.md:1:1 E_DOCUMENT_NOT_FOUND/);
+  await write(root, directory + "/spec.md", `---\nid: ${id}/journal\n---\n`);
+  assert.match(invoke("--digest").stderr, /E_LOCATION: \[document-location\]/);
+  await write(root, directory + "/spec.md", `---\nid: ${id}/spec\n---\n`);
+  const noJournal = invoke();
+  assert.equal(noJournal.status, 2);
+  assert.match(noJournal.stderr, /journal\.md:1:1 E_DOCUMENT_NOT_FOUND/);
+});

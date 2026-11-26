@@ -7,7 +7,7 @@ import { loadConfig } from "../config.ts";
 import { CommandError } from "../diagnostics.ts";
 import { project, temporary, write, snapshot } from "../tests/helpers.ts";
 import { initProject, type InitIO } from "./init.ts";
-import { createChange, type ChangeIO } from "./new.ts";
+import { createDraft, type ChangeIO } from "./new.ts";
 
 const fault = (message: string) => Object.assign(new Error(message), { code: "EIO" });
 
@@ -80,7 +80,7 @@ for (const writeFails of [false, true]) {
     if (!writeFails && !closeFails) {
       continue;
     }
-    void test(`new retains failures write=${writeFails} close=${closeFails} and partial file`, async (t) => {
+    void test(`new retains failures write=${writeFails} close=${closeFails} without publishing a partial file`, async (t) => {
       const root = await project(t, false);
       const io: ChangeIO = {
         ...fs,
@@ -103,17 +103,18 @@ for (const writeFails of [false, true]) {
           };
         },
       };
-      await assert.rejects(createChange(await loadConfig(root), "Failure", { io }), (error) => {
-        assert(error instanceof CommandError);
-        assert.equal(error.code, "E_IO");
-        assert.equal(error.message.includes("WRITE_FAILURE"), writeFails, error.message);
-        assert.equal(error.message.includes("CLOSE_FAILURE"), closeFails, error.message);
-        assert.match(error.message, /intent.md/);
-        return true;
-      });
-      assert.deepEqual(await fs.readdir(path.join(root, "viaferrata/changes/change-000001")), [
-        "intent.md",
-      ]);
+      await assert.rejects(
+        createDraft(await loadConfig(root), "change", "Failure", { io }),
+        (error) => {
+          assert(error instanceof CommandError);
+          assert.equal(error.code, "E_IO");
+          assert.equal(error.message.includes("WRITE_FAILURE"), writeFails, error.message);
+          assert.equal(error.message.includes("CLOSE_FAILURE"), closeFails, error.message);
+          assert.match(error.message, /intent.md/);
+          return true;
+        },
+      );
+      assert.deepEqual(await fs.readdir(path.join(root, "viaferrata/changes")), []);
     });
   }
 }
@@ -140,7 +141,7 @@ void test("programming defects during IO retain internal classification and part
   );
   const projectRoot = await project(t, false);
   await assert.rejects(
-    createChange(await loadConfig(projectRoot), "Defect", {
+    createDraft(await loadConfig(projectRoot), "change", "Defect", {
       io: {
         ...fs,
         open: async () => {
@@ -156,4 +157,29 @@ void test("programming defects during IO retain internal classification and part
       return true;
     },
   );
+});
+
+void test("standalone cleanup failure reports whether the file was published", async (t) => {
+  for (const writeFails of [false, true]) {
+    const config = await loadConfig(await project(t, false));
+    const io: ChangeIO = {
+      ...fs,
+      open: async (file, flags) => {
+        if (writeFails) {
+          throw fault("WRITE_FAILURE");
+        }
+        return fs.open(file, flags);
+      },
+      rm: async () => {
+        throw fault("CLEANUP_FAILURE");
+      },
+    };
+    await assert.rejects(createDraft(config, "adr", "Failure", { io }), (error) => {
+      assert(error instanceof CommandError && error.code === "E_IO");
+      assert.match(error.message, /CLEANUP_FAILURE/);
+      assert.match(error.message, writeFails ? /WRITE_FAILURE/ : /уже опубликован/);
+      return true;
+    });
+    assert.deepEqual(await fs.readdir(config.directories.adr), writeFails ? [] : ["adr-000001.md"]);
+  }
 });

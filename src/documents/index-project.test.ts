@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createChange } from "../commands/new.ts";
+import { createDraft } from "../commands/new.ts";
 import { validateProject } from "../commands/validate.ts";
 import { loadConfig } from "../config.ts";
 import { project, write } from "../tests/helpers.ts";
@@ -20,7 +20,7 @@ void test("project validation retains invalid-metadata documents and new only re
   const checked = await validateProject(config);
   assert(checked.diagnostics.some((d) => d.code === "E_DRAFT_PLACEHOLDER"));
   assert(checked.diagnostics.some((d) => d.code === "E_STRUCTURE"));
-  assert.equal((await createChange(config, "Следующая задача")).id, "change-000051");
+  assert.equal((await createDraft(config, "change", "Следующая задача")).id, "change-000051");
 
   await write(root, "viaferrata/specs/broken.md", "# Нет метаданных\n");
   const invalid = await validateProject(config);

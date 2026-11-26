@@ -25,7 +25,7 @@
 ## Возможности
 
 - `vf init [path] [--profile lite|strict] [--documents-root <path>]` — подключает существующий каталог проекта: создаёт конфигурацию, добавляет навигацию в `AGENTS.md` и исключение временных данных в `.gitignore`.
-- `vf new "Название задачи"` — создаёт черновики Intent, Spec и Plan для deep-задачи: цель, требования и план работы.
+- `vf new change "Название задачи"` — создаёт черновики Intent, Spec и Plan для deep-задачи: цель, требования и план работы. Для отдельного документа используйте `vf new srs "Название"`, `vf new adr "Название"` или `vf new research "Название"`.
 - `vf complete change-NNNNNN` — проверяет готовность рабочего комплекта и переводит Plan в completed.
 - `vf validate` — проверяет целостность рабочих и архивных документов, дельты и ссылки; сообщает о несоответствии текущей форме и незавершённой синхронизации.
 - `vf summary change-NNNNNN` — показывает проверки и решения из YAML-блоков рабочего или архивного Journal.
@@ -55,7 +55,7 @@ vf --help
 vf init /path/to/project --profile lite
 ```
 
-При первом подключении укажите профиль. Например, `vf init --profile lite --documents-root docs/process` записывает корень документов в конфигурацию. Повторный `vf init` использует сохранённые настройки. [Публичный интерфейс vf](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/viaferrata/specs/cli-tools.md).
+При первом подключении укажите профиль. Например, `vf init --profile lite --documents-root docs/process` записывает корень документов в конфигурацию. Повторный `vf init` использует сохранённые настройки. [Публичный интерфейс vf](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/viaferrata/specs/srs-000003-cli-tools.md).
 
 После `vf init` откройте проект с агентом, сообщите цель и выбранный способ запуска. [Подробное руководство](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/docs/quickstart.md) проводит от подключения до первой проверки и объясняет, как продолжить работу в новой сессии.
 
@@ -67,7 +67,7 @@ vf init /path/to/project --profile lite
 
 ## Документация
 
-- [Каталог встроенных правил и диагностик](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/viaferrata/specs/built-in-checks.md#system-overview).
+- [Каталог встроенных правил и диагностик](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/viaferrata/specs/srs-000001-built-in-checks.md#system-overview).
 - [Процесс работы с агентом](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/instructions/workflow.md).
 - [Шаблоны, метаданные и связи документов](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/templates/README.md).
 - [Глоссарий в репозитории](https://github.com/ArtMan-8/ViaFerrata/blob/trunk/docs/GLOSSARY.md).

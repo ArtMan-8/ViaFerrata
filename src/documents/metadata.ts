@@ -1,6 +1,6 @@
 import { parseDocument, visit, isAlias, isScalar, isSeq, isMap, isNode } from "yaml";
 
-import { errorMessage } from "../diagnostics.ts";
+import { CommandError, errorMessage } from "../diagnostics.ts";
 import type { Rule } from "../rules.ts";
 import { identityRules } from "../rules/identity.ts";
 import { metadataRules } from "../rules/metadata.ts";
@@ -133,6 +133,27 @@ export function readDocumentIdentity(source: DocumentSource): Result<DocumentMet
   const diagnostics = new SourceDiagnostics(source);
   const front = readFrontMatter(source, diagnostics);
   return { value: front?.value ?? null, diagnostics: diagnostics.items };
+}
+
+// Commands reading one named artifact need the same parse diagnostics as validate.
+export function requireDocumentIdentity(
+  source: DocumentSource,
+  expected: string,
+): DocumentMetadata {
+  const parsed = readDocumentIdentity(source);
+  if (!parsed.value) {
+    throw CommandError.fromDiagnostic(parsed.diagnostics[0]);
+  }
+
+  if (parsed.value.identity.id !== expected) {
+    throw new CommandError(
+      identityRules.documentLocation,
+      `По этому пути ожидается документ ${expected}, найден ${parsed.value.identity.id}. Проверьте размещение.`,
+      source.file,
+    );
+  }
+
+  return parsed.value;
 }
 
 export function parseDocumentMetadata(source: DocumentSource): Result<DocumentMetadata | null> {

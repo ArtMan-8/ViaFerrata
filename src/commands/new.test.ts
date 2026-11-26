@@ -5,13 +5,13 @@ import test from "node:test";
 
 import { loadConfig } from "../config.ts";
 import { CommandError } from "../diagnostics.ts";
-import { project, run, snapshot, repo } from "../tests/helpers.ts";
+import { project, run, snapshot, repo, write } from "../tests/helpers.ts";
 import type { ChangeIO } from "./new.ts";
-import { createChange } from "./new.ts";
+import { createDraft } from "./new.ts";
 
 void test("new directly satisfies metadata expectations using packaged full templates", async (t) => {
   const root = await project(t, false);
-  const result = await createChange(await loadConfig(root), "Задача *с Markdown*", {
+  const result = await createDraft(await loadConfig(root), "change", "Задача *с Markdown*", {
     now: () => new Date("2026-11-12T00:00:01Z"),
   });
   assert.equal(result.id, "change-000001");
@@ -43,48 +43,116 @@ void test("exclusive-create conflict never overwrites another owner", async (t) 
   const target = path.join(root, "viaferrata/changes/change-000001");
   const io: ChangeIO = {
     ...fs,
-    mkdir: async (p) => {
-      if (p === target) {
-        await fs.mkdir(p);
-        await fs.writeFile(path.join(p, "intent.md"), "other owner");
-      }
-      return fs.mkdir(p);
+    rename: async (source, destination) => {
+      await fs.mkdir(target);
+      await fs.writeFile(path.join(target, "intent.md"), "other owner");
+      await fs.rename(source, destination);
     },
   };
   await assert.rejects(
-    createChange(config, "Conflict", { io }),
-    (e) => e instanceof CommandError && e.code === "E_EXISTS",
+    createDraft(config, "change", "Conflict", { io }),
+    (e) => e instanceof CommandError && e.code === "E_CONFLICT",
   );
   assert.equal(await fs.readFile(path.join(target, "intent.md"), "utf8"), "other owner");
 });
 
-void test("write failure reports and preserves exact partial result; next attempt skips ID", async (t) => {
+for (const type of ["change", "srs"] as const) {
+  void test(`failed ${type} write leaves no published draft and permits retry`, async (t) => {
+    const config = await loadConfig(await project(t, false));
+    const io: ChangeIO = {
+      ...fs,
+      open: async (file, flags) => {
+        if (file.endsWith(type === "change" ? "/spec.md" : "/srs.md")) {
+          throw Object.assign(new Error("full"), { code: "ENOSPC" });
+        }
+        return fs.open(file, flags);
+      },
+    };
+    await assert.rejects(
+      createDraft(config, type, "Failure", { io }),
+      (e) => e instanceof CommandError && e.code === "E_IO",
+    );
+    const dir = type === "change" ? "changes" : "specs";
+    assert.deepEqual(await fs.readdir(config.directories[dir]), []);
+    assert.deepEqual(await fs.readdir(config.documentsRoot), [dir]);
+    assert.equal((await createDraft(config, type, "Retry")).id, type + "-000001");
+  });
+
+  void test(`two ${type} creators selecting the same ID publish exactly once`, async (t) => {
+    const config = await loadConfig(await project(t, false));
+    const ready = Promise.withResolvers<void>();
+    let arrivals = 0;
+    const io: ChangeIO = {
+      ...fs,
+      mkdtemp: async (prefix: string) => {
+        if (++arrivals === 2) {
+          ready.resolve();
+        }
+        await ready.promise;
+        return fs.mkdtemp(prefix);
+      },
+    };
+    const results = await Promise.allSettled(
+      ["One", "Two"].map((title) => createDraft(config, type, title, { io })),
+    );
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    const failure = results.find((r) => r.status === "rejected");
+    assert(failure?.reason instanceof CommandError && failure.reason.code === "E_CONFLICT");
+    const dir = type === "change" ? config.directories.changes : config.directories.specs;
+    const entries = await fs.readdir(dir);
+    assert.equal(entries.length, 1);
+    if (type === "change") {
+      assert.deepEqual((await fs.readdir(path.join(dir, entries[0]))).sort(), [
+        "intent.md",
+        "plan.md",
+        "spec.md",
+      ]);
+    } else {
+      assert.match(await fs.readFile(path.join(dir, entries[0]), "utf8"), /## Requirements/);
+    }
+  });
+}
+
+void test("standalone allocation uses YAML identities and preserves old forms", async (t) => {
   const root = await project(t, false);
   const config = await loadConfig(root);
-  const io: ChangeIO = {
-    ...fs,
-    open: async (file, flags) => {
-      if (file.endsWith("/spec.md")) {
-        const error = Object.assign(new Error("simulated ENOSPC"), {
-          code: "ENOSPC",
-        });
-        throw error;
-      }
-      return fs.open(file, flags);
-    },
-  };
-  await assert.rejects(
-    createChange(config, "Partial", { io }),
-    (e) =>
-      e instanceof CommandError &&
-      e.code === "E_IO" &&
-      /intent.md/.test(e.message) &&
-      !/создано:.*spec.md/.test(e.message),
+  const old =
+    "---\nid: srs-000075\nstatus: approved\ncreated: '2026-11-20'\nupdated: '2026-11-20'\n---\n# Legacy\n";
+  await write(root, "viaferrata/specs/custom.md", old);
+  assert.match(run(["validate"], root).text, /W_FORM/);
+  assert.equal((await createDraft(config, "srs", "Working")).id, "srs-000076");
+  assert.equal(await fs.readFile(path.join(config.directories.specs, "custom.md"), "utf8"), old);
+  await write(
+    root,
+    "viaferrata/archive/specs/history.md",
+    old.replace("000075", "000084").replace("approved", "cancelled"),
   );
-  assert.deepEqual(await fs.readdir(path.join(root, "viaferrata/changes/change-000001")), [
-    "intent.md",
-  ]);
-  assert.equal((await createChange(config, "Next")).id, "change-000002");
+  const before = await snapshot(config.documentsRoot);
+  const result = await createDraft(config, "srs", "New");
+  assert.equal(result.id, "srs-000085");
+  assert.match(await fs.readFile(result.created[0], "utf8"), /## System Overview/);
+  const after = await snapshot(config.documentsRoot);
+  for (const key of Object.keys(before)) {
+    assert.deepEqual(after[key], before[key]);
+  }
+  await write(root, "viaferrata/specs/srs-000086.md", old.replace("000075", "000004"));
+  await assert.rejects(
+    createDraft(config, "srs", "Collision"),
+    (e) => e instanceof CommandError && e.code === "E_CONFLICT",
+  );
+  assert.equal(
+    await fs.readFile(path.join(config.directories.specs, "srs-000086.md"), "utf8"),
+    old.replace("000075", "000004"),
+  );
+  await write(
+    root,
+    "viaferrata/archive/specs/last.md",
+    old.replace("000075", "999999").replace("approved", "cancelled"),
+  );
+  await assert.rejects(
+    createDraft(config, "srs", "Full"),
+    (e) => e instanceof CommandError && e.code === "E_ID_EXHAUSTED",
+  );
 });
 
 void test("template failure causes no project writes; updated templates do not regenerate old documents", async (t) => {
@@ -92,16 +160,16 @@ void test("template failure causes no project writes; updated templates do not r
   const config = await loadConfig(root);
   const before = await snapshot(root);
   await assert.rejects(
-    createChange(config, "Missing", { templates: path.join(root, "missing") }),
+    createDraft(config, "change", "Missing", { templates: path.join(root, "missing") }),
     (e) => e instanceof CommandError && e.code === "E_IO",
   );
   assert.deepEqual(await snapshot(root), before);
   const templates = path.join(root, "library");
   await fs.cp(path.join(repo, "templates"), templates, { recursive: true });
-  await createChange(config, "First", { templates });
+  await createDraft(config, "change", "First", { templates });
   const old = await snapshot(path.join(root, "viaferrata"));
   await fs.appendFile(path.join(templates, "intent.md"), "\nNew library text.\n");
-  await createChange(config, "Second", { templates });
+  await createDraft(config, "change", "Second", { templates });
   const after = await snapshot(path.join(root, "viaferrata"));
   for (const key of Object.keys(old)) {
     assert.deepEqual(after[key], old[key]);
@@ -120,7 +188,7 @@ for (const parameter of ["toString", "constructor", "__proto__", "hasOwnProperty
     await fs.appendFile(path.join(templates, "intent.md"), `\n{{${parameter}}}\n`);
     const before = await snapshot(root);
     await assert.rejects(
-      createChange(await loadConfig(root), "Unknown parameter", { templates }),
+      createDraft(await loadConfig(root), "change", "Unknown parameter", { templates }),
       (error) => error instanceof CommandError && error.code === "E_UNSUPPORTED",
     );
     assert.deepEqual(await snapshot(root), before);

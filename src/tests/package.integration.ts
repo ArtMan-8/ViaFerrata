@@ -66,8 +66,39 @@ void test(
       assert.match(result.stderr, /E_CONFIG/);
       assert.deepEqual(await snapshot(custom), customFiles);
     }
-    command(executable, ["new", "Custom root"], custom);
-    await fs.access(path.join(custom, "project/docs/changes/change-000001/plan.md"));
+    for (const [type, dir, forms] of [
+      ["change", "changes", ["intent", "spec", "plan"]],
+      ["srs", "specs", ["srs"]],
+      ["adr", "adr", ["adr"]],
+      ["research", "research", ["research"]],
+    ] as const) {
+      const id = type + "-000001";
+      const startDate = new Date().toISOString().slice(0, 10);
+      const report = command(executable, ["new", type, "Custom *root*"], custom);
+      const endDate = new Date().toISOString().slice(0, 10);
+      assert(report.includes(path.join("project/docs", dir, type === "change" ? id : id + ".md")));
+      for (const form of forms) {
+        const relative = type === "change" ? path.join(id, form + ".md") : id + ".md";
+        const draft = await fs.readFile(path.join(custom, "project/docs", dir, relative), "utf8");
+        const date = /^created: "(\d{4}-\d{2}-\d{2})"$/m.exec(draft)?.[1];
+        assert.ok(date && (date === startDate || date === endDate));
+        const template = await fs.readFile(
+          path.join(install, "node_modules/viaferrata/templates", form + ".md"),
+          "utf8",
+        );
+        assert.equal(
+          draft,
+          template
+            .replaceAll("{{date}}", date)
+            .replaceAll("{{title}}", "Custom \\*root\\*")
+            .replaceAll("{{change_id}}", id)
+            .replaceAll("{{document_id}}", id),
+        );
+      }
+    }
+    const drafts = run(["validate"], custom, executable);
+    assert.equal(drafts.status, 1, drafts.text);
+    assert.deepEqual([...new Set(drafts.stderr.match(/\bE_[A-Z_]+\b/g))], ["E_DRAFT_PLACEHOLDER"]);
 
     const target = path.join(temp, "consumer");
     await write(target, "notes.txt", "Ручной текст проекта\n");
@@ -87,7 +118,7 @@ void test(
     const consumerCwd = path.join(target, "work", "nested");
     await fs.mkdir(consumerCwd, { recursive: true });
     const original = await snapshot(target);
-    const created = run(["new", "Library template"], consumerCwd, executable);
+    const created = run(["new", "change", "Library template"], consumerCwd, executable);
     assert.equal(created.status, 0, created.text);
     const generated = path.join(target, "viaferrata/changes/change-000001");
     assert.deepEqual((await fs.readdir(generated)).sort(), ["intent.md", "plan.md", "spec.md"]);
@@ -143,7 +174,7 @@ void test(
     const movedOutput = command(movedExecutable, ["init", target], temp);
     assert(movedOutput.includes(path.join(movedPackage, "instructions/workflow.md")));
     assert.deepEqual(await snapshot(target), after);
-    const next = command(movedExecutable, ["new", "После архивирования"], consumerCwd);
+    const next = command(movedExecutable, ["new", "change", "После архивирования"], consumerCwd);
     assert.match(next, /change-000002/);
     const journalTemplate = await fs.readFile(
       path.join(movedPackage, "templates/journal.md"),
@@ -189,7 +220,7 @@ void test(
     const draftPlan = await fs.readFile(planPath);
     const completion = run(["complete", "change-000002"], consumerCwd, movedExecutable);
     assert.notEqual(completion.status, 0);
-    assert.doesNotMatch(completion.stderr, /E_USAGE|E_INTERNAL/);
+    assert.doesNotMatch(completion.stderr, /E_CLI_SYNTAX|E_CLI_COMMAND_USAGE|E_INTERNAL/);
     assert.deepEqual(await fs.readFile(planPath), draftPlan);
     await verifyLaunchModes(temp, tarball);
     const workflow = path.join(movedPackage, "instructions/workflow.md");

@@ -59,7 +59,7 @@ async function readTarget(file: string, io: InitIO): Promise<FileState | null> {
     );
   }
   if (!stat.isFile()) {
-    throw new CommandError("E_EXISTS", "Нужен обычный файл; устраните конфликт типа пути.", file);
+    throw new CommandError("E_CONFLICT", "Нужен обычный файл; устраните конфликт типа пути.", file);
   }
 
   return { bytes: await io.readFile(file), stat };
@@ -129,7 +129,7 @@ async function unchanged(edit: Edit, io: InitIO) {
   }
 
   throw new CommandError(
-    "E_EXISTS",
+    "E_CONFLICT",
     "Файл изменился после чтения; проверьте изменения и повторите init.",
     edit.file,
   );
@@ -326,7 +326,7 @@ export async function initProject(
       error instanceof CommandError
         ? error.reason
         : errorCode(error) === "EEXIST"
-          ? "E_EXISTS"
+          ? "E_CONFLICT"
           : isFileError(error)
             ? "E_IO"
             : "E_INTERNAL";

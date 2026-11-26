@@ -7,23 +7,25 @@ export type DiagnosticCode =
   | "E_IO"
   | "E_INTERNAL"
   | "E_CONFIG"
-  | "E_USAGE"
+  | "E_CLI_SYNTAX"
+  | "E_CLI_COMMAND_USAGE"
+  | "E_DOCUMENT_NOT_FOUND"
+  | "E_COMPLETION_BLOCKED"
   | "E_SCOPE"
   | "E_RUNTIME"
-  | "E_EXISTS"
+  | "E_CONFLICT"
   | "E_ID_EXHAUSTED"
   | "E_YAML"
   | "E_ID"
   | "E_FIELD"
   | "W_FORM"
   | "W_ARCHIVE_REFERENCE"
-  | "W_HISTORY"
+  | "W_HISTORICAL_REVISION"
   | "W_SYNC_PENDING"
   | "E_ARCHIVE_STATE"
   | "W_VERIFICATION_COVERAGE"
   | "E_PLAN_COVERAGE"
   | "E_STRUCTURE"
-  | "E_DUPLICATE_LOCAL_ID"
   | "E_DRAFT_PLACEHOLDER"
   | "E_LOCATION"
   | "E_DUPLICATE_ID"
@@ -61,8 +63,19 @@ export function errorMessage(error: unknown): string {
 }
 
 export class CommandError extends Error {
+  #original?: Diagnostic;
   readonly reason: DiagnosticCode | Rule;
-  file: string;
+  readonly file: string;
+
+  static fromDiagnostic(item: Diagnostic): CommandError {
+    const error = new CommandError(item.code, item.message, item.file);
+    error.#original = item;
+    return error;
+  }
+
+  get diagnostic(): Diagnostic {
+    return this.#original ?? diagnostic(this.file, this.reason, this.message);
+  }
 
   get code(): DiagnosticCode {
     return typeof this.reason === "string" ? this.reason : this.reason.code;
@@ -107,9 +120,12 @@ export function exitCode(items: readonly Diagnostic[]): 0 | 1 | 2 {
         "E_IO",
         "E_CONFIG",
         "E_UNSUPPORTED",
-        "E_USAGE",
+        "E_CLI_SYNTAX",
+        "E_CLI_COMMAND_USAGE",
+        "E_DOCUMENT_NOT_FOUND",
+        "E_COMPLETION_BLOCKED",
         "E_RUNTIME",
-        "E_EXISTS",
+        "E_CONFLICT",
         "E_ID_EXHAUSTED",
       ].includes(d.code),
     )

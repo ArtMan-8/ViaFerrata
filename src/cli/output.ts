@@ -6,18 +6,13 @@ import type { Config } from "../config.ts";
 import { exitCode } from "../diagnostics.ts";
 import { instructionFiles } from "../resources.ts";
 import { coverageRules } from "../rules/coverage.ts";
+import { commandHelp } from "./arguments.ts";
 
-export const help = `ViaFerrata — подключение проекта, создание change и структурная проверка документов
+export const help = `ViaFerrata — подключение проекта, создание черновиков и структурная проверка документов
 
 vf --help
 vf --version
-vf init [path] [--profile lite|strict] [--documents-root <path>]
-vf new "Название задачи"
-vf validate
-vf summary change-NNNNNN
-vf summary --stdin
-vf scope change-NNNNNN [--digest]
-vf complete change-NNNNNN
+${commandHelp}
 
 new/validate ищут ближайший viaferrata.toml вверх от cwd; неверная конфигурация останавливает поиск.
 scope сверяет пути Git с согласованным scope; --digest выводит сумму масок рабочей Spec.
@@ -26,7 +21,7 @@ init использует path либо cwd; первое подключение
 Опции --profile и --documents-root допускаются до и после init, значение — через пробел или =; повторы запрещены.
 --help и --version используются самостоятельно, без команды и других опций.
 init подключает существующий каталог; для новой конфигурации обязателен --profile.
-new создаёт три draft-документа по библиотечным формам с optional-подсказками.
+new создаёт комплект change или один документ выбранного типа по форме пакета.
 validate проверяет метаданные, ID, обязательные разделы, placeholders и существование ссылок, без изменения файлов.
 complete проверяет условия завершения deep-задачи и обновляет execution рабочего Plan.
 Инструкции: ${instructionFiles.workflow}
@@ -50,8 +45,14 @@ export function initReport(result: InitResult): string {
   ].join("\n");
 }
 
-export function createdReport(config: Config, id: string): string {
-  return `Создан ${id}: intent.md, spec.md, plan.md. Черновик требует заполнения; Journal не создан.\n${path.relative(config.root, path.join(config.directories.changes, id))}`;
+export function createdReport(config: Config, id: string, destination: string): string {
+  const relative = path.relative(config.root, destination);
+
+  if (!id.startsWith("change-")) {
+    return `Создан ${id}: ${path.basename(destination)}. Черновик требует заполнения.\n${relative}`;
+  }
+
+  return `Создан ${id}: intent.md, spec.md, plan.md. Черновик требует заполнения; Journal не создан.\n${relative}`;
 }
 
 export function validationReport(config: Config, result: ValidationResult): string[] {

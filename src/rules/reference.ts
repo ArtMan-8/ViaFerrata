@@ -9,6 +9,6 @@ export const referenceRules = {
   relationSelf: { id: "relation-self", code: "E_FIELD" },
   relationCycle: { id: "relation-cycle", code: "E_FIELD" },
   referenceTarget: { id: "reference-target", code: "E_REFERENCE_TARGET" },
-  historicalRevision: { id: "historical-revision", code: "W_HISTORY" },
+  historicalRevision: { id: "historical-revision", code: "W_HISTORICAL_REVISION" },
   activeReferenceTarget: { id: "active-reference-target", code: "W_ARCHIVE_REFERENCE" },
 } as const satisfies RuleGroup;

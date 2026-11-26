@@ -34,8 +34,10 @@ void test("stdin accepts YAML and JSON without a project and never emits partial
   assert.match(result.stdout, /Исполнитель: неизвестен/);
   assert.match(result.stdout, /согласования не указано/);
   assert.match(invoke("checks: []").stdout, /Записанных проверок: 0/);
+  const empty = invoke("  \n");
+  assert.equal(empty.status, 2);
+  assert.match(empty.stderr, /E_CLI_COMMAND_USAGE: Пустой stdin/);
   for (const input of [
-    "",
     "{}",
     "checks: {}",
     stringify({ checks }) + "    outcome: failed\n",
@@ -62,13 +64,20 @@ void test("summary reads only the selected Journal sections and detects conflict
     fence("decisions: [Разрешена установка по переписке]") +
     "\n## Verification and Result\n### Verification\n";
   const old = head + "Исторический результат: passed.\n### Result\n" + fence("checks: []");
+  await fs.mkdir(working, { recursive: true });
+  const missing = invoke();
+  assert.equal(missing.status, 2);
+  assert.match(missing.stderr, /journal\.md:1:1 E_DOCUMENT_NOT_FOUND/);
+  await write(working, file, head.replace("/journal", "/spec"));
+  assert.match(invoke().stderr, /E_LOCATION: \[document-location\]/);
   await write(working, file, old);
   assert.match(invoke().stderr, /Формат сводки не найден/);
   await write(working, file, head + fence("checks: []"));
   assert.match(invoke().stdout, /проверок: 0[\s\S]*Разрешена установка/);
   const records = fence(stringify({ checks }));
   await write(working, file, head + records + records);
-  assert.match(invoke().stderr, /Несколько блоков/);
+  const duplicateLine = (head + records).split("\n").length;
+  assert(invoke().stderr.includes(`journal.md:${duplicateLine}:1 E_FIELD: Несколько блоков`));
   await write(working, file, head + fence(stringify({ checks }) + "    outcome: failed"));
   const bad = invoke();
   assert.notEqual(bad.status, 0);
