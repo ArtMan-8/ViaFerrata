@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
-import { createChange } from "../commands/new.ts";
+import { createDraft } from "../commands/new.ts";
 import { validateProject } from "../commands/validate.ts";
 import { loadConfig } from "../config.ts";
 import { exitCode } from "../diagnostics.ts";
@@ -87,7 +87,7 @@ for (const documentsRoot of ["viaferrata", "process/docs"]) {
       recursive: true,
     });
     assert.equal(
-      (await createChange(await loadConfig(root), "Следующая задача")).id,
+      (await createDraft(await loadConfig(root), "change", "Следующая задача")).id,
       "change-000051",
     );
     await write(
@@ -255,7 +255,7 @@ void test("new reserves an occupied archive filename as well as incomplete direc
   const root = await project(t, false);
   await write(root, "viaferrata/archive/changes/change-000075", "Остаток неполного переноса");
   assert.equal(
-    (await createChange(await loadConfig(root), "Следующая задача")).id,
+    (await createDraft(await loadConfig(root), "change", "Следующая задача")).id,
     "change-000076",
   );
 });
@@ -263,20 +263,20 @@ void test("new reserves an occupied archive filename as well as incomplete direc
 void test("deleting an unstarted bundle leaves no Journal and releases its number", async (t) => {
   const root = await project(t, false);
   const config = await loadConfig(root);
-  const first = await createChange(config, "Неначатая задача");
+  const first = await createDraft(config, "change", "Неначатая задача");
   assert.equal(first.id, "change-000001");
   const directory = path.join(root, "viaferrata/changes/change-000001");
   assert.deepEqual((await fs.readdir(directory)).sort(), ["intent.md", "plan.md", "spec.md"]);
   await fs.rm(directory, { recursive: true });
   assert.deepEqual((await check(root)).diagnostics, []);
-  assert.equal((await createChange(config, "Новая задача")).id, "change-000001");
+  assert.equal((await createDraft(config, "change", "Новая задача")).id, "change-000001");
   assert.deepEqual((await fs.readdir(directory)).sort(), ["intent.md", "plan.md", "spec.md"]);
 });
 
 void test("vf new example becomes a validated delta only after the author activates it", async (t) => {
   const root = await project(t, false);
   const config = await loadConfig(root);
-  await createChange(config, "Проверка миграции");
+  await createDraft(config, "change", "Проверка миграции");
   const spec = "viaferrata/changes/change-000001/spec.md";
   const generated = await fs.readFile(path.join(root, spec), "utf8");
   const example = /^````markdown\n([\s\S]*?)\n````$/m.exec(generated);

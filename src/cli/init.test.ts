@@ -75,7 +75,7 @@ void test("init uses the selected document root and detects conflicts before wri
     assert.match(failed.stderr, /E_CONFIG/);
     assert.deepEqual(await snapshot(root), ready);
   }
-  assert.equal(run(["new", "Первая задача"], root).status, 0);
+  assert.equal(run(["new", "change", "Первая задача"], root).status, 0);
   await fs.access(path.join(root, selected, "changes/change-000001/intent.md"));
   const draft = run(["validate"], root);
   assert.equal(draft.status, 1, draft.text);
@@ -134,7 +134,7 @@ for (const args of [
     const root = await temporary(t);
     const result = run(args, root);
     assert.equal(result.status, 2, result.text);
-    assert.match(result.stderr, /E_USAGE/);
+    assert.match(result.stderr, args[0] === "--root" ? /E_CLI_SYNTAX/ : /E_CLI_COMMAND_USAGE/);
     assert.equal(result.stdout, "");
     assert.deepEqual(await fs.readdir(root), []);
   });
@@ -155,7 +155,7 @@ void test("init preserves strict config, custom document root and existing proje
   for (const [file, state] of Object.entries(before)) {
     assert.deepEqual((await snapshot(root))[file], state);
   }
-  const created = run(["new", "После подключения"], root);
+  const created = run(["new", "change", "После подключения"], root);
   assert.equal(created.status, 0, created.text);
   await fs.access(path.join(root, "process docs/changes/change-000001/intent.md"));
   assert.equal(await fs.stat(path.join(root, "viaferrata")).catch(() => null), null);

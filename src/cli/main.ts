@@ -4,7 +4,7 @@ import { text } from "node:stream/consumers";
 
 import { completeChange } from "../commands/complete.ts";
 import { initProject } from "../commands/init.ts";
-import { createChange } from "../commands/new.ts";
+import { createDraft } from "../commands/new.ts";
 import { checkScope } from "../commands/scope.ts";
 import { journalSummary, inputSummary } from "../commands/summary.ts";
 import { validateProject } from "../commands/validate.ts";
@@ -130,13 +130,13 @@ export async function main(
     }
 
     if (args.command === "new") {
-      const result = await createChange(config, args.title);
+      const result = await createDraft(config, args.type, args.title);
       for (const item of result.diagnostics) {
         output.error(formatDiagnostic(item));
       }
 
       if (result.id) {
-        output.log(createdReport(config, result.id));
+        output.log(createdReport(config, result.id, result.created[0]));
       }
 
       return exitCode(result.diagnostics);

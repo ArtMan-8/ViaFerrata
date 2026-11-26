@@ -33,7 +33,7 @@ for (const documentsRoot of ["viaferrata", "process"]) {
       );
     }
     assert.deepEqual(await snapshot(root), before);
-    const created = run(["new", "Следующая задача"], root);
+    const created = run(["new", "change", "Следующая задача"], root);
     assert.equal(created.status, 0, created.text);
     assert.match(created.text, /change-000008/);
   });
@@ -77,7 +77,7 @@ for (const value of [" ", "   ", "\u00a0"]) {
     const root = await project(t, false);
     await write(root, "viaferrata.toml", `profile = "lite"\ndocuments_root = "${value}"\n`);
     const before = await snapshot(root);
-    for (const args of [["validate"], ["new", "Ошибка конфигурации"]]) {
+    for (const args of [["validate"], ["new", "change", "Ошибка конфигурации"]]) {
       const result = run(args, root);
       assert.equal(result.status, 2, result.text);
       assert.match(result.text, /E_CONFIG/);
@@ -89,7 +89,7 @@ for (const value of [" ", "   ", "\u00a0"]) {
 void test("nonempty documents_root retains leading, internal and trailing spaces", async (t) => {
   const root = await project(t, false);
   await write(root, "viaferrata.toml", 'profile = "lite"\ndocuments_root = " my docs "\n');
-  const result = run(["new", "Путь с пробелами"], root);
+  const result = run(["new", "change", "Путь с пробелами"], root);
   assert.equal(result.status, 0, result.text);
   assert((await fs.stat(path.join(root, " my docs /changes/change-000001/intent.md"))).isFile());
   const checked = run(["validate"], root);
@@ -295,7 +295,7 @@ const mutations: [string, string, (source: string) => string, string, number][] 
     "duplicate step",
     planPath,
     (s) => s + "\n- [ ] P-1: Повторный шаг.\n",
-    "E_DUPLICATE_LOCAL_ID",
+    "E_DUPLICATE_LOCAL_ID: [unique-local-id]",
     1,
   ],
   ["bad step syntax", planPath, (s) => s.replace("- [ ] P-1:", "- [X] P-1:"), "W_FORM", 0],
@@ -463,7 +463,7 @@ void test("configuration rule IDs survive command error handling", async (t) => 
     ['profile="lite"\nrequired_checks=["document-title"]', "selectable-check"],
   ]) {
     await write(root, "viaferrata.toml", toml);
-    for (const args of [["init"], ["new", "Проверка"], ["validate"]]) {
+    for (const args of [["init"], ["new", "change", "Проверка"], ["validate"]]) {
       const result = run(args, root);
       assert.equal(result.status, 2, result.text);
       assert.match(result.stderr, /E_CONFIG/);

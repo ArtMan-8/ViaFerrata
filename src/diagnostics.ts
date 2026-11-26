@@ -8,6 +8,8 @@ export type DiagnosticCode =
   | "E_INTERNAL"
   | "E_CONFIG"
   | "E_USAGE"
+  | "E_CLI_SYNTAX"
+  | "E_CLI_COMMAND_USAGE"
   | "E_SCOPE"
   | "E_RUNTIME"
   | "E_EXISTS"
@@ -108,6 +110,8 @@ export function exitCode(items: readonly Diagnostic[]): 0 | 1 | 2 {
         "E_CONFIG",
         "E_UNSUPPORTED",
         "E_USAGE",
+        "E_CLI_SYNTAX",
+        "E_CLI_COMMAND_USAGE",
         "E_RUNTIME",
         "E_EXISTS",
         "E_ID_EXHAUSTED",

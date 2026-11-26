@@ -29,6 +29,6 @@ void test("expected usage errors remain concise", async () => {
   });
   assert.equal(code, 2);
   assert.equal(stderr.length, 1);
-  assert.match(stderr[0], /E_USAGE/);
+  assert.match(stderr[0], /E_CLI_SYNTAX/);
   assert.doesNotMatch(stderr[0], /E_INTERNAL|\n\s+at /);
 });
