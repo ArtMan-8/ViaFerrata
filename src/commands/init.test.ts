@@ -10,6 +10,17 @@ import { initProject, type InitIO } from "./init.ts";
 
 const fault = () => Object.assign(new Error("controlled IO failure"), { code: "EIO" });
 
+void test("init rejects control characters in the document root before writing", async (t) => {
+  const root = await temporary(t);
+  const before = await snapshot(root);
+  for (const control of ["\t", "\u007f", "\u0085", "\u009f"]) {
+    await assert.rejects(initProject(root, "lite", { documentsRoot: `docs/a${control}b` }), {
+      code: "E_CONFIG",
+    });
+    assert.deepEqual(await snapshot(root), before);
+  }
+});
+
 void test("init preserves a formatted AGENTS block and the legacy layout", async (t) => {
   const root = await temporary(t);
   await initProject(root, "lite");

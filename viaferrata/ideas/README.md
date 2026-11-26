@@ -4,11 +4,10 @@
 
 [Правила и единый шаблон](../../instructions/ideas.md) описывают запись, поиск связанных идей и переход к работе.
 
-В этом репозитории Markdown и локальные ссылки проверяются существующими средствами. `vf validate` каталог идей не проверяет.
+В этом репозитории Markdown проверяет `npm run lint`, локальные ссылки — `node --test src/tests/documentation.test.ts`. Каталог идей находится вне области проверки `vf validate`.
 
 ## Навигация
 
 - [Автоматическое ревью и заметки](automatic-review-notes.md).
 - [CLI, skills и агенты](cli-skills-agents.md).
-- [Версии формата документов и миграция](document-format-evolution.md).
 - [Автоматизация выпуска](release-automation.md).

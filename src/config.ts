@@ -86,14 +86,12 @@ export function documentsRootSetting(value: unknown, file: string): string {
     typeof relative !== "string" ||
     !relative.trim() ||
     path.isAbsolute(relative) ||
-    // Control characters are forbidden in a documents_root path.
-    // oxlint-disable-next-line no-control-regex
-    /[\\*?[\]{}\x00-\x1f]/.test(relative) ||
+    /[\\*?[\]{}\p{Cc}]/u.test(relative) ||
     relative.split("/").some((p) => [".", "..", ".git", ".viaferrata", "node_modules"].includes(p))
   ) {
     throw new CommandError(
       configRules.validDocumentsRoot,
-      "documents_root должен быть непустым относительным путём, не состоящим только из пробелов, без glob, служебных каталогов и . или ..; исправьте путь.",
+      "documents_root должен быть непустым относительным путём, не состоящим только из пробелов, без glob, обратной косой черты, управляющих символов, служебных каталогов и . или ..; исправьте путь.",
       file,
     );
   }
