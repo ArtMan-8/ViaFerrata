@@ -88,7 +88,7 @@ after: |-
 
 ## Definition of Done
 
-Выполнить проверки по AGENTS.md. Для этого change применим следующий перечень.
+Выполнить проверки по `AGENTS.md`. Для этого change применим следующий перечень.
 
 ```yaml
 completion_checks:

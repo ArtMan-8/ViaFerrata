@@ -10,7 +10,7 @@ updated: "2026-11-15"
 
 ## Technical Approach
 
-Документальная конвенция использует существующие инструкции, руководство шаблонов и средства проверки Markdown. Программный код не меняется. Шаблон хранится вместе с правилами в instructions/ideas.md; README каталога идей ссылается на него. Перенос четырёх заметок и удаление docs/ideas.md после внедрения конвенции входят в этот change и служат практической проверкой обращения с заметками.
+Правила работы с идеями опираются на существующие инструкции, руководство по шаблонам и средства проверки Markdown. Программный код не меняется. Шаблон хранится вместе с правилами в instructions/ideas.md; README каталога идей ссылается на него. Перенос четырёх заметок и удаление docs/ideas.md после внедрения конвенции входят в этот change и служат практической проверкой обращения с заметками.
 
 ## Steps
 
@@ -57,7 +57,7 @@ Execution: sequential
     - [change-000005/intent/AC-2]
     - [change-000005/intent/AC-3]
     - [change-000005/intent/AC-4]
-  - Verification: npm run format:check; npm run lint; node --test src/tests/documentation.test.ts; node bin/vf.ts validate; git diff --check; git diff --cached --check. Проверить tracked/untracked относительно scope, отсутствие оставленных тестовых данных; очистка временных файлов только в пределах действующих разрешений. Проверка содержания — по instructions/artifact-review.md.
+  - Verification: `npm run format:check`; `npm run lint`; `node --test src/tests/documentation.test.ts`; `node bin/vf.ts validate`; `git diff --check`; `git diff --cached --check`. Проверить tracked/untracked относительно scope, отсутствие оставленных тестовых данных; очистка временных файлов только в пределах действующих разрешений. Проверка содержания — по instructions/artifact-review.md.
 
 ### W-4: Разделение инструкций по задаче
 
@@ -71,8 +71,8 @@ Execution: sequential
 - [x] P-7: Выполнить документальные проверки, build и test:package; актуализировать Journal и завершить change после успешных проверок.
   - Covers:
     - [change-000005/intent/AC-5]
-  - Verification: команды P-5, npm run build, npm run test:package; тестовые установки и штатная очистка — в пределах разрешения, зафиксированного в Journal.
+  - Verification: команды P-5, `npm run build`, `npm run test:package`; тестовые установки и штатная очистка — в пределах разрешения, зафиксированного в Journal.
 
 ## Точка продолжения
 
-Реализация и проверки завершены, включая разделение инструкций, перенос release-automation.md, сборку и тест поставки. Фактические результаты и ограничения — в Journal.
+Реализация и проверки завершены, включая разделение инструкций, перенос `release-automation.md`, сборку и тест поставки. Фактические результаты и ограничения — в Journal.

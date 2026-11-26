@@ -99,6 +99,7 @@ for (const [name, config, expected] of [
   ["bad profile", 'profile = "disabled"', "E_CONFIG"],
   ["wrong type", 'profile = "lite"\ndocuments_root = []', "E_CONFIG"],
   ["parent escape", 'profile = "lite"\ndocuments_root = "../other"', "E_CONFIG"],
+  ["control in root", 'profile = "lite"\ndocuments_root = "docs/a\\u0085b"', "E_CONFIG"],
   ["absolute root", 'profile = "lite"\ndocuments_root = "/tmp"', "E_CONFIG"],
   ["temporary root", 'profile = "lite"\ndocuments_root = ".viaferrata"', "E_CONFIG"],
   ["required checks", 'profile = "lite"\nrequired_checks = ["unit"]', "E_CONFIG"],
