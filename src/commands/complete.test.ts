@@ -5,7 +5,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
+import { loadConfig } from "../config.ts";
 import { edit, project, run, write } from "../tests/helpers.ts";
+import { completeChange } from "./complete.ts";
 
 void test("complete evaluates the working change, preserves rejected plans and supports retries", async (t) => {
   const root = await project(t);
@@ -94,18 +96,18 @@ checks:
 `;
   const cli = () => run(["complete", change], root);
   await write(root, dir + "journal.md", journal);
-  assert.match(cli().stderr, /P-1/);
+  assert.match(cli().stderr, /E_COMPLETION_BLOCKED:.*P-1/);
   await edit(root, dir + "plan.md", (s) => s.replace("- [ ] P-1", "- [x] P-1"));
   const plan = await fs.readFile(path.join(root, dir, "plan.md"), "utf8");
   for (const [before, after, reason] of [
-    ["subject: test", "subject: build", /test/],
+    ["subject: test", "subject: build", /E_COMPLETION_BLOCKED:.*test/],
     ["outcome: passed", "outcome: blocked", /test/],
     ["outcome: passed", "outcome: failed", /test/],
     ["revision: inputs", "revision: null", /test/],
     ["- Revision: inputs", "- Revision:", /V-1/],
     ["- Verifies:", "- Evidence:", /AC-1/],
-    ["    verification: V-1", "    verification: V-2", /V-2/],
-    [policy, "other", /completion_digest/],
+    ["    verification: V-1", "    verification: V-2", /E_FIELD:.*V-2/],
+    [policy, "other", /E_FIELD:.*completion_digest/],
     ["decisions: [Согласовано]", "decisions: []", /decisions/],
     ["Проверен пустой экспорт.", "", /Result/],
   ] as const) {
@@ -115,6 +117,29 @@ checks:
     assert.match(result.stderr, reason);
     assert.equal(await fs.readFile(path.join(root, dir, "plan.md"), "utf8"), plan);
   }
+  await write(root, dir + "journal.md", journal);
+  await edit(root, dir + "spec.md", (s) =>
+    s.replace("completion_checks: [test]", "completion_checks: ["),
+  );
+  assert.match(cli().stderr, /E_YAML:.*Некорректный YAML/);
+  await edit(root, dir + "spec.md", (s) =>
+    s.replace("completion_checks: [\n", "completion_checks: [test]\n"),
+  );
+
+  const duplicate = journal.replace("#### V-1:", "```yaml\nchecks: []\n```\n\n#### V-1:");
+  await write(root, dir + "journal.md", duplicate);
+  const location = (stderr: string) =>
+    stderr
+      .split("\n")
+      .find((line) => line.includes("Несколько блоков checks"))
+      ?.split(" E_FIELD:")[0];
+  const expected =
+    dir +
+    "journal.md:" +
+    duplicate.slice(0, duplicate.indexOf("```yaml\nchecks: []")).split("\n").length +
+    ":1";
+  assert.equal(location(cli().stderr), expected);
+  assert.equal(location(run(["summary", change], root).stderr), expected);
   // Put the incomplete V first so coverage must find the valid V for this AC.
   const extraVerification = journal
     .replace(
@@ -139,7 +164,7 @@ checks:
   await edit(root, dir + "spec.md", (s) =>
     s.replace("completion_checks: [test]", "completion_checks: [test, build]"),
   );
-  assert.match(cli().stderr, /completion_digest/);
+  assert.match(cli().stderr, /E_COMPLETION_BLOCKED:.*completion_digest/);
   await edit(root, dir + "spec.md", (s) =>
     s.replace("completion_checks: [test, build]", "completion_checks: [test]"),
   );
@@ -159,7 +184,7 @@ checks:
   assert.equal(await fs.readFile(path.join(root, dir, "plan.md"), "utf8"), plan);
   await edit(root, dir + "journal.md", (s) => s.replace(beforeSetup, base));
   await write(root, "viaferrata.toml", 'profile = "lite"\n');
-  assert.match(cli().stderr, /профиль strict/);
+  assert.match(cli().stderr, /E_COMPLETION_BLOCKED:.*профиль strict/);
   await fs.writeFile(configPath, originalConfig);
   await write(
     root,
@@ -181,8 +206,77 @@ checks:
   const updatedBase = git("rev-parse", "HEAD");
   await edit(root, dir + "journal.md", (s) => s.replace(base, updatedBase));
   await edit(root, dir + "intent.md", (s) => s.replace("srs-000007/R-1", "srs-000007/R-999"));
-  assert.match(cli().stderr, /R-999/);
+  const missingTarget = cli()
+    .stderr.trim()
+    .split("\n")
+    .find((line) => line.includes("R-999"));
+  assert.ok(missingTarget);
+  assert.match(
+    missingTarget,
+    /intent\.md:[1-9]\d*:[1-9]\d* E_REFERENCE_TARGET: \[reference-target\]/,
+  );
+  assert.equal(missingTarget.split("E_REFERENCE_TARGET").length, 2);
   await edit(root, dir + "intent.md", (s) => s.replace("srs-000007/R-999", "srs-000007/R-1"));
+  const config = await loadConfig(root);
+  const complete = () => completeChange(config, change, () => {});
+  await t.test(
+    "filesystem failure preserves the Plan and cleans the temporary file",
+    async (subtest) => {
+      subtest.mock.method(fs, "rename", async () => {
+        throw Object.assign(new Error("no space"), { code: "ENOSPC" });
+      });
+      await assert.rejects(complete, { code: "E_IO", message: /no space/ });
+      assert.equal(await fs.readFile(path.join(root, dir, "plan.md"), "utf8"), plan);
+      assert.equal(
+        (await fs.readdir(path.join(root, dir))).some((name) => name.startsWith(".complete-")),
+        false,
+      );
+    },
+  );
+  await t.test(
+    "Plan disappearing before opening the temporary file is a conflict",
+    async (subtest) => {
+      const originalStat = fs.stat;
+      const planPath = path.join(root, dir, "plan.md");
+      subtest.mock.method(fs, "stat", async (...args: Parameters<typeof fs.stat>) => {
+        if (args[0] === planPath) {
+          throw Object.assign(new Error("missing"), { code: "ENOENT", path: planPath });
+        }
+        return originalStat(...args);
+      });
+      await assert.rejects(complete, { code: "E_CONFLICT" });
+    },
+  );
+  await t.test("cleanup failure keeps the original IO error", async (subtest) => {
+    subtest.mock.method(fs, "rename", async () => {
+      throw Object.assign(new Error("no space"), { code: "ENOSPC" });
+    });
+    subtest.mock.method(fs, "rm", async () => {
+      throw Object.assign(new Error("denied"), { code: "EACCES" });
+    });
+    await assert.rejects(complete, { code: "E_IO", message: /no space.*denied/s });
+  });
+  for (const file of await fs.readdir(path.join(root, dir))) {
+    if (file.startsWith(".complete-")) {
+      await fs.unlink(path.join(root, dir, file));
+    }
+  }
+  await t.test(
+    "a concurrent edit returns E_CONFLICT and keeps the newer bytes",
+    async (subtest) => {
+      const planPath = path.join(root, dir, "plan.md");
+      const originalOpen = fs.open;
+      subtest.mock.method(fs, "open", async (...args: Parameters<typeof fs.open>) => {
+        if (String(args[0]).includes(".complete-")) {
+          await fs.appendFile(planPath, "\nchanged");
+        }
+        return originalOpen(...args);
+      });
+      await assert.rejects(complete, { code: "E_CONFLICT" });
+      assert.equal(await fs.readFile(planPath, "utf8"), plan + "\nchanged");
+    },
+  );
+  await write(root, dir + "plan.md", plan);
   const result = cli();
   assert.equal(result.status, 0, result.text);
   assert.equal(
@@ -215,4 +309,22 @@ checks:
   await write(root, "viaferrata.toml", 'profile = "lite"\n');
   const lite = cli();
   assert.equal(lite.status, 0, lite.text);
+});
+
+void test("complete distinguishes an absent, incomplete and archived change", async (t) => {
+  const config = await loadConfig(await project(t));
+  const invoke = (change: string) => completeChange(config, change, () => {});
+  await assert.rejects(() => invoke("change-000099"), { code: "E_DOCUMENT_NOT_FOUND" });
+  await fs.mkdir(path.join(config.directories.changes, "change-000099"));
+  await assert.rejects(() => invoke("change-000099"), { code: "E_STRUCTURE" });
+
+  const change = "change-000042";
+  await assert.rejects(() => invoke(change), { code: "E_COMPLETION_BLOCKED" });
+  await edit(config.root, "viaferrata/changes/" + change + "/plan.md", (s) =>
+    s.replace("not_started", "cancelled"),
+  );
+  const archive = path.join(config.documentsRoot, "archive", "changes");
+  await fs.mkdir(archive, { recursive: true });
+  await fs.rename(path.join(config.directories.changes, change), path.join(archive, change));
+  await assert.rejects(() => invoke(change), { code: "E_COMPLETION_BLOCKED", message: /архивный/ });
 });

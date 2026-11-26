@@ -61,7 +61,7 @@ npx viaferrata@0.1.0 --help либо vf --help при глобальной ус�
   }
   await write(root, "AGENTS.md", previous.replace("путь к установленному bin", "другую команду"));
   const before = await snapshot(root);
-  await assert.rejects(initProject(root), { code: "E_EXISTS" });
+  await assert.rejects(initProject(root), { code: "E_CONFLICT" });
   assert.deepEqual(await snapshot(root), before);
 });
 
@@ -81,7 +81,7 @@ for (const change of [
     const before = await snapshot(root);
     const result = run(["init"], root);
     assert.equal(result.status, 2, result.text);
-    assert.match(result.stderr, /AGENTS.md:1:1 E_EXISTS/);
+    assert.match(result.stderr, /AGENTS.md:1:1 E_CONFLICT/);
     assert.deepEqual(await snapshot(root), before);
   });
 }
@@ -207,7 +207,7 @@ void test("init detects a concurrent edit before replacement and keeps external 
       return fs.open(file, flags);
     },
   };
-  await assert.rejects(initProject(root, "lite", { io }), { code: "E_EXISTS" });
+  await assert.rejects(initProject(root, "lite", { io }), { code: "E_CONFLICT" });
   assert.equal(await fs.readFile(path.join(root, ".gitignore"), "utf8"), "внешнее изменение\n");
   assert.deepEqual(await fs.readdir(root), [".gitignore"]);
 });
@@ -221,7 +221,7 @@ void test("exclusive publication does not overwrite a newly occupied target", as
       return fs.link(from, to);
     },
   };
-  await assert.rejects(initProject(root, "lite", { io }), { code: "E_EXISTS" });
+  await assert.rejects(initProject(root, "lite", { io }), { code: "E_CONFLICT" });
   assert.equal(
     await fs.readFile(path.join(root, ".gitignore"), "utf8"),
     "занято другим действием\n",

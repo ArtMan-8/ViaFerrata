@@ -177,3 +177,33 @@ void test("invalid new syntax preserves the project and shows the new command sy
     assert.deepEqual(await snapshot(root), before);
   }
 });
+
+void test("commands preserve the same source diagnostic for a malformed Journal", async (t) => {
+  const root = await project(t);
+  const change = "change-000042";
+  const file = `viaferrata/changes/${change}/journal.md`;
+  await write(root, file, "---\nid: [\n---\n# Journal\n");
+  const validation = run(["validate"], root);
+  assert.equal(validation.status, 1);
+  const header = validation.stderr
+    .split("\n")
+    .find((line) => line.includes("E_YAML: [valid-yaml]"));
+  assert.ok(header, validation.stderr);
+  assert(header.startsWith(`${file}:2:6 E_YAML:`), header);
+  for (const command of ["summary", "scope", "complete"]) {
+    const result = run([command, change], root);
+    assert.equal(result.status, 2);
+    assert(result.stderr.split("\n").includes(header), result.stderr);
+  }
+});
+
+void test("commands report the same missing change without changing files", async (t) => {
+  const root = await project(t);
+  const before = await snapshot(root);
+  for (const command of ["summary", "scope", "complete"]) {
+    const result = run([command, "change-999999"], root);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /E_DOCUMENT_NOT_FOUND/);
+  }
+  assert.deepEqual(await snapshot(root), before);
+});

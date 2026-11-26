@@ -153,16 +153,16 @@ export async function main(
 
     return exitCode(result.diagnostics);
   } catch (error) {
-    const file = error instanceof CommandError ? error.file : "vf";
-    const d = diagnostic(
-      path.isAbsolute(file) ? path.relative(root, file) || "." : file,
-      error instanceof CommandError ? error.reason : "E_INTERNAL",
+    const d =
       error instanceof CommandError
-        ? error.message
-        : `Не удалось выполнить команду: ${errorMessage(error)}; проверьте окружение и пакет.`,
-    );
-
-    output.error(formatDiagnostic(d));
+        ? error.diagnostic
+        : diagnostic(
+            "vf",
+            "E_INTERNAL",
+            `Не удалось выполнить команду: ${errorMessage(error)}; проверьте окружение и пакет.`,
+          );
+    const file = path.isAbsolute(d.file) ? path.relative(root, d.file) || "." : d.file;
+    output.error(formatDiagnostic({ ...d, file }));
     if (d.code === "E_INTERNAL") {
       output.error(errorStack(error));
     }

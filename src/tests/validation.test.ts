@@ -295,7 +295,7 @@ const mutations: [string, string, (source: string) => string, string, number][] 
     "duplicate step",
     planPath,
     (s) => s + "\n- [ ] P-1: Повторный шаг.\n",
-    "E_DUPLICATE_LOCAL_ID: [unique-local-id]",
+    "E_DUPLICATE_ID: [unique-local-id]",
     1,
   ],
   ["bad step syntax", planPath, (s) => s.replace("- [ ] P-1:", "- [X] P-1:"), "W_FORM", 0],

@@ -51,7 +51,7 @@ void test("exclusive-create conflict never overwrites another owner", async (t) 
   };
   await assert.rejects(
     createDraft(config, "change", "Conflict", { io }),
-    (e) => e instanceof CommandError && e.code === "E_EXISTS",
+    (e) => e instanceof CommandError && e.code === "E_CONFLICT",
   );
   assert.equal(await fs.readFile(path.join(target, "intent.md"), "utf8"), "other owner");
 });
@@ -97,7 +97,7 @@ for (const type of ["change", "srs"] as const) {
     );
     assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
     const failure = results.find((r) => r.status === "rejected");
-    assert(failure?.reason instanceof CommandError && failure.reason.code === "E_EXISTS");
+    assert(failure?.reason instanceof CommandError && failure.reason.code === "E_CONFLICT");
     const dir = type === "change" ? config.directories.changes : config.directories.specs;
     const entries = await fs.readdir(dir);
     assert.equal(entries.length, 1);
@@ -138,7 +138,7 @@ void test("standalone allocation uses YAML identities and preserves old forms", 
   await write(root, "viaferrata/specs/srs-000086.md", old.replace("000075", "000004"));
   await assert.rejects(
     createDraft(config, "srs", "Collision"),
-    (e) => e instanceof CommandError && e.code === "E_EXISTS",
+    (e) => e instanceof CommandError && e.code === "E_CONFLICT",
   );
   assert.equal(
     await fs.readFile(path.join(config.directories.specs, "srs-000086.md"), "utf8"),

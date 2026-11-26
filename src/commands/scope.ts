@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import type { Config } from "../config.ts";
-import { CommandError, errorMessage } from "../diagnostics.ts";
+import { CommandError, errorCode, errorMessage, isFileError } from "../diagnostics.ts";
 import { topLevelMarkdownNodes } from "../documents/markdown-nodes.ts";
-import { readDocumentIdentity } from "../documents/metadata.ts";
+import { requireDocumentIdentity } from "../documents/metadata.ts";
 import { requiredChangeTypes } from "../documents/schema.ts";
 import { markdownSections, parseYamlFence } from "../documents/yaml-blocks.ts";
 import { checkPath } from "../filesystem.ts";
@@ -127,18 +127,18 @@ async function readArtifact(directory: string, change: string, kind: "spec" | "j
     }
 
     const raw = new TextDecoder("utf-8", { fatal: true }).decode(await fs.readFile(file));
-    const parsed = readDocumentIdentity({ file, raw });
-    if (!parsed.value || parsed.value.identity.id !== change + "/" + kind) {
+    const metadata = requireDocumentIdentity({ file, raw }, change + "/" + kind);
+    return { file, fields: metadata.fields, body: raw.slice(metadata.bodyOffset) };
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
       throw new CommandError(
-        "E_FIELD",
-        parsed.diagnostics[0]?.message ?? "Проверьте ID документа и выбранный change.",
+        "E_DOCUMENT_NOT_FOUND",
+        `Запрошенный документ ${change}/${kind} не найден.`,
         file,
       );
     }
 
-    return { file, fields: parsed.value.fields, body: raw.slice(parsed.value.bodyOffset) };
-  } catch (error) {
-    if (error instanceof CommandError) {
+    if (!isFileError(error) && errorCode(error) !== "ERR_ENCODING_INVALID_ENCODED_DATA") {
       throw error;
     }
 

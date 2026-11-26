@@ -173,7 +173,7 @@ export async function createDraft(
     if (type === "change") {
       try {
         await io.lstat(destination);
-        throw new CommandError("E_EXISTS", "Путь уже занят.", destination);
+        throw new CommandError("E_CONFLICT", "Путь уже занят.", destination);
       } catch (error) {
         if (errorCode(error) !== "ENOENT") {
           throw error;
@@ -191,7 +191,7 @@ export async function createDraft(
         ? error.code
         : ["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].includes(errorCode(error) ?? "") &&
             writing === destination
-          ? "E_EXISTS"
+          ? "E_CONFLICT"
           : isFileError(error)
             ? "E_IO"
             : "E_INTERNAL";

@@ -86,7 +86,7 @@ export function agentsText(original: string, file: string): string {
   }
 
   throw new CommandError(
-    "E_EXISTS",
+    "E_CONFLICT",
     "Блок ViaFerrata изменён или повреждён; проверьте различие, вынесите дополнения за его границы либо согласуйте восстановление блока.",
     file,
   );
@@ -104,7 +104,7 @@ export function ignoreText(original: string, file: string): string {
 
   if (lines.slice(lastRule + 1).some((line) => line.startsWith("!"))) {
     throw new CommandError(
-      "E_EXISTS",
+      "E_CONFLICT",
       "После исключения .viaferrata/ есть отрицание; проверьте правила и разместите исключение после отрицаний. Полный синтаксис gitignore не интерпретируется.",
       file,
     );

@@ -132,7 +132,7 @@
     "exitCode": 1,
     "errors": [
       {
-        "code": "E_DUPLICATE_LOCAL_ID",
+        "code": "E_DUPLICATE_ID",
         "path": "viaferrata/changes/change-000042/intent.md"
       }
     ],

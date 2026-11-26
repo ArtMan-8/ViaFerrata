@@ -79,7 +79,7 @@ for (const documentsRoot of ["viaferrata", "process/docs"]) {
     assert(!archived.diagnostics.some((d) => d.code === "W_FORM"));
     assert(
       archived.diagnostics.some(
-        (d) => d.code === "W_HISTORY" && d.message.includes("Before найдены"),
+        (d) => d.code === "W_HISTORICAL_REVISION" && d.message.includes("Before найдены"),
       ),
     );
     assert.deepEqual(await snapshot(root), before);
@@ -146,7 +146,7 @@ void test("cancelled changes do not provide accepted removal evidence; no-SRS co
   assert.equal(exitCode(cancelled.diagnostics), 0);
   assert(
     cancelled.diagnostics.some(
-      (d) => d.code === "W_HISTORY" && d.message.includes("не восстановлена"),
+      (d) => d.code === "W_HISTORICAL_REVISION" && d.message.includes("не восстановлена"),
     ),
   );
   await bundle(

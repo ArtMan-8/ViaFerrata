@@ -226,7 +226,7 @@ for (const [original, expected] of [
     const result = run(init, root);
     if (expected === "conflict") {
       assert.equal(result.status, 2, result.text);
-      assert.match(result.stderr, /E_EXISTS/);
+      assert.match(result.stderr, /E_CONFLICT/);
       assert.deepEqual(await snapshot(root), before);
     } else {
       assert.equal(result.status, 0, result.text);
@@ -326,7 +326,7 @@ for (const name of ["AGENTS.md", ".gitignore", "viaferrata.toml"]) {
     await fs.mkdir(path.join(root, name));
     const result = run(init, root);
     assert.equal(result.status, 2, result.text);
-    assert.match(result.stderr, /E_EXISTS/);
+    assert.match(result.stderr, /E_CONFLICT/);
     assert.deepEqual(await fs.readdir(root), [name]);
   });
 }

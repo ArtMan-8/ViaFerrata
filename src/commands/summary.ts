@@ -4,9 +4,9 @@ import path from "node:path";
 import { parseDocument } from "yaml";
 
 import type { Config } from "../config.ts";
-import { CommandError, errorCode, errorMessage, isFileError } from "../diagnostics.ts";
+import { CommandError, diagnostic, errorCode, errorMessage, isFileError } from "../diagnostics.ts";
 import { plain, topLevelMarkdownNodes } from "../documents/markdown-nodes.ts";
-import { readDocumentIdentity } from "../documents/metadata.ts";
+import { requireDocumentIdentity } from "../documents/metadata.ts";
 import { markdownSections, parseYamlFence } from "../documents/yaml-blocks.ts";
 import { checkPath } from "../filesystem.ts";
 
@@ -14,7 +14,12 @@ function mapping(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function reportValue(document: ReturnType<typeof parseDocument>, location: string): unknown {
+function reportValue(
+  document: ReturnType<typeof parseDocument>,
+  file: string,
+  line = 1,
+  column = 1,
+): unknown {
   try {
     for (const warning of document.warnings) {
       process.emitWarning(warning);
@@ -23,9 +28,12 @@ function reportValue(document: ReturnType<typeof parseDocument>, location: strin
     if (document.errors.length) {
       throw document.errors[0];
     }
+
     return document.toJS();
   } catch (error) {
-    throw new CommandError("E_YAML", errorMessage(error), location);
+    throw CommandError.fromDiagnostic(
+      diagnostic(file, "E_YAML", errorMessage(error), line, column),
+    );
   }
 }
 
@@ -83,13 +91,16 @@ function render(report: unknown, file: string): string {
 
 export function inputSummary(input: string): string {
   if (!input.trim()) {
-    throw new CommandError("E_USAGE", "Пустой stdin: передайте отчёт.", "stdin");
+    throw new CommandError("E_CLI_COMMAND_USAGE", "Пустой stdin: передайте отчёт.", "stdin");
   }
 
   return render(reportValue(parseDocument(input, { uniqueKeys: true }), "stdin"), "stdin");
 }
 
-export function journalReport(body: string, file: string) {
+export function journalReport(raw: string, file: string, bodyOffset: number) {
+  // Keep fence diagnostics relative to the original Journal, including front matter.
+  const headerLines = raw.slice(0, bodyOffset).split("\n").length - 1;
+  const body = "\n".repeat(headerLines) + raw.slice(bodyOffset);
   const report: Record<string, unknown> = {};
   for (const { section, heading, blocks } of markdownSections(topLevelMarkdownNodes(body))) {
     let key: "decisions" | "checks";
@@ -106,14 +117,22 @@ export function journalReport(body: string, file: string) {
     }
 
     for (const fence of blocks) {
-      const at = `${file}:${fence.position.start.line}`;
-      const block = reportValue(parseYamlFence(fence, body, "markdown").document, at);
+      const { line, column } = fence.position.start;
+      const block = reportValue(
+        parseYamlFence(fence, body, "markdown").document,
+        file,
+        line,
+        column,
+      );
+
       if (!mapping(block) || !Object.hasOwn(block, key)) {
         continue;
       }
 
       if (Object.hasOwn(report, key)) {
-        throw new CommandError("E_FIELD", `Несколько блоков ${key} в одном разделе.`, at);
+        throw CommandError.fromDiagnostic(
+          diagnostic(file, "E_FIELD", `Несколько блоков ${key} в одном разделе.`, line, column),
+        );
       }
 
       report[key] = block[key];
@@ -159,7 +178,7 @@ export async function journalSummary(config: Config, change: string): Promise<st
     }
 
     if (!active && !archived) {
-      throw new CommandError("E_LOCATION", "Комплект не найден.", change);
+      throw new CommandError("E_DOCUMENT_NOT_FOUND", "Комплект не найден.", change);
     }
 
     file = path.join(archived ? archive : working, "journal.md");
@@ -169,21 +188,16 @@ export async function journalSummary(config: Config, change: string): Promise<st
     }
 
     const raw = new TextDecoder("utf-8", { fatal: true }).decode(await fs.readFile(file));
-    const metadata = readDocumentIdentity({ raw, file }).value;
-    if (metadata?.identity.id !== change + "/journal") {
-      throw new CommandError("E_ID", "ID Journal не соответствует выбранному change.", file);
-    }
+    const metadata = requireDocumentIdentity({ raw, file }, change + "/journal");
 
-    // Preserve document line numbers for diagnostics in fenced YAML blocks.
-    const headerLines = raw.slice(0, metadata.bodyOffset).split("\n").length - 1;
-    const report = journalReport("\n".repeat(headerLines) + raw.slice(metadata.bodyOffset), file);
+    const report = journalReport(raw, file, metadata.bodyOffset);
     return `${change}${archived ? " (архив)" : ""}\n${render(report, file)}`;
   } catch (error) {
-    if (!isFileError(error) && errorCode(error) !== "ERR_ENCODING_INVALID_ENCODED_DATA") {
-      throw error;
+    if (errorCode(error) === "ENOENT") {
+      throw new CommandError("E_DOCUMENT_NOT_FOUND", "Запрошенный Journal не найден.", file);
     }
 
-    if (error instanceof CommandError) {
+    if (!isFileError(error) && errorCode(error) !== "ERR_ENCODING_INVALID_ENCODED_DATA") {
       throw error;
     }
 
