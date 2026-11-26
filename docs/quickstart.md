@@ -90,4 +90,4 @@ npx viaferrata@latest init /path/to/project
 
 ## Пример применения
 
-ViaFerrata используется при собственной разработке. Примеры завершённых комплектов в публичном репозитории: [подключение проекта командой init](https://github.com/ArtMan-8/ViaFerrata/tree/trunk/viaferrata/archive/changes/change-000002) и [инженерные проверки и поиск проекта](https://github.com/ArtMan-8/ViaFerrata/tree/trunk/viaferrata/changes/change-000003). Это история конкретных изменений; действующий процесс описывают инструкции текущего пакета.
+ViaFerrata используется при собственной разработке. Примеры завершённых комплектов в публичном репозитории: [подключение проекта командой init](https://github.com/ArtMan-8/ViaFerrata/tree/trunk/viaferrata/archive/changes/change-000002) и [инженерные проверки и поиск проекта](https://github.com/ArtMan-8/ViaFerrata/tree/trunk/viaferrata/archive/changes/change-000003). Это история конкретных изменений; действующий процесс описывают инструкции текущего пакета.
