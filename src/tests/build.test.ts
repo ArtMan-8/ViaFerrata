@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
-import { write } from "./helpers.ts";
+import { packageVersion, write } from "./helpers.ts";
 import { command, execute, packagingSource } from "./package-helpers.ts";
 
 void test(
@@ -34,7 +34,9 @@ void test(
       command(process.execPath, [path.join(source, "dist/bin/vf.js"), "--help"], temp),
       /new/,
     );
-    const packed = path.join(temp, "viaferrata-0.1.0.tgz");
+    const version = await packageVersion();
+    assert.ok(typeof version === "string");
+    const packed = path.join(temp, `viaferrata-${version}.tgz`);
     await fs.access(packed);
     await fs.unlink(packed);
 
